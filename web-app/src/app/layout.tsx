@@ -1,0 +1,32 @@
+import type { Metadata } from "next";
+import "@/app/globals.css";
+import { AppSidebar } from "@/app/sidebar";
+import { ConfirmToastProvider } from "@/components/shared/confirm-toast";
+
+export const metadata: Metadata = {
+  title: "VendAI Dashboard",
+  description: "Unified inbox and AI sales assistant",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      </head>
+      <body>
+        <ConfirmToastProvider>
+          <div
+            className="flex h-screen bg-white overflow-hidden"
+            style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
+          >
+            <AppSidebar />
+            {children}
+          </div>
+        </ConfirmToastProvider>
+      </body>
+    </html>
+  );
+}

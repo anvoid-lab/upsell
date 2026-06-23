@@ -1,0 +1,16 @@
+// shadcn/ui components index
+// Import from here for convenience: import { Button, Card, Badge } from "@/components/ui"
+
+export { Button, buttonVariants } from "./button"
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card"
+export { Badge, badgeVariants } from "./badge"
+export { Input } from "./input"
+export { Textarea } from "./textarea"
+export { Switch } from "./switch"
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs"
+export { Avatar, AvatarImage, AvatarFallback } from "./avatar"
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip"
+export { Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectItem, SelectLabel, SelectSeparator } from "./select"
+export { Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./dialog"
+export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "./dropdown-menu"
+export { Separator } from "./separator"
