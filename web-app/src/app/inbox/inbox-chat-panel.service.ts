@@ -7,14 +7,19 @@ import {
   MessageContract,
   validateContract,
   type AISuggestion,
+  type ConversationDoc,
   type FollowUp,
   type FollowUpType,
   type Message,
 } from "@core/contracts";
 import { mongodbConnection } from "@db/client";
-import { MOCK_AI_SUGGESTIONS } from "@/lib/mock-data";
 
 class InboxChatPanelService {
+  private readonly conversations = new BaseRepository<ConversationDoc>({
+    collection: "conversations",
+    client: mongodbConnection,
+  });
+
   private readonly messages = new BaseRepository<Message>({
     collection: "messages",
     client: mongodbConnection,
@@ -25,37 +30,55 @@ class InboxChatPanelService {
     client: mongodbConnection,
   });
 
+  private readonly aiSuggestions = new BaseRepository<AISuggestion>({
+    collection: "aiSuggestions",
+    client: mongodbConnection,
+  });
+
   async fetchAISuggestion(conversationId: string): Promise<AISuggestion | null> {
-    await new Promise((r) => setTimeout(r, 400));
-    const suggestion = MOCK_AI_SUGGESTIONS[conversationId] ?? null;
-    return AISuggestionContract.responseSchema.parse({ suggestion }).suggestion;
+    const docs = await this.aiSuggestions.findAll<AISuggestion>({
+      filters: { conversation_id: conversationId } as Partial<AISuggestion>,
+    });
+    return AISuggestionContract.responseSchema.parse({ suggestion: docs[0] ?? null }).suggestion;
   }
 
-  async sendMessage(conversationId: string, message: string): Promise<void> {
+  async sendMessage(conversationId: string, content: string): Promise<void> {
     validateContract(
       MessageContract.sendRequestSchema,
-      { conversation_id: conversationId, content: message },
+      { conversation_id: conversationId, content },
       "InboxChatPanelService.sendMessage",
     );
-    await new Promise((r) => setTimeout(r, 600));
+    const timestamp = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+    await this.messages.create({ conversation_id: conversationId, content, direction: "out", timestamp, read: true });
   }
 
   async scheduleFollowUp(
     conversationId: string,
     message: string,
     delayHours: number,
-    type: FollowUpType
+    type: FollowUpType,
   ): Promise<void> {
     validateContract(
       FollowUpContract.scheduleRequestSchema,
       { conversation_id: conversationId, message, delay_hours: delayHours, type },
       "InboxChatPanelService.scheduleFollowUp",
     );
-    await new Promise((r) => setTimeout(r, 500));
+    const conv = await this.conversations.findById<ConversationDoc>(conversationId);
+    const contactName = conv?.contact?.name ?? "Cliente";
+    const scheduledFor = new Date(Date.now() + delayHours * 60 * 60 * 1000).toISOString();
+    await this.followUps.create({
+      conversation_id: conversationId,
+      contact_name: contactName,
+      title: `Follow-up — ${type}`,
+      message,
+      status: "scheduled",
+      type,
+      scheduled_for: scheduledFor,
+    });
   }
 
   async markAsResolved(conversationId: string): Promise<void> {
-    await new Promise((r) => setTimeout(r, 300));
+    await this.conversations.update(conversationId, { status: "resolved" } as Partial<ConversationDoc>);
   }
 }
 

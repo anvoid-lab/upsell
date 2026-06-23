@@ -9,7 +9,9 @@ import {
   type ChannelConnection,
 } from "@core/contracts";
 import { mongodbConnection } from "@db/client";
-import { MOCK_CHANNELS, MOCK_AI_SETTINGS } from "@/lib/mock-data";
+
+type ChannelDoc = ChannelConnection & { id: string };
+type AISettingsDoc = AISettings & { id: string };
 
 class SettingsChannelsService {
   private readonly channels = new BaseRepository<ChannelConnection>({
@@ -23,40 +25,38 @@ class SettingsChannelsService {
   });
 
   async fetchChannels(): Promise<ChannelConnection[]> {
-    await new Promise((r) => setTimeout(r, 200));
-    return MOCK_CHANNELS.map((channel) => ChannelContract.connectionSchema.parse(channel));
+    const docs = await this.channels.findAll<ChannelDoc>();
+    return docs.map((doc) => ChannelContract.connectionSchema.parse(doc));
   }
 
   async connectChannel(platform: string): Promise<void> {
-    validateContract(
-      ChannelContract.connectRequestSchema,
-      { platform },
-      "SettingsChannelsService.connectChannel",
-    );
-    await new Promise((r) => setTimeout(r, 1200));
+    validateContract(ChannelContract.connectRequestSchema, { platform }, "SettingsChannelsService.connectChannel");
+    const docs = await this.channels.findAll<ChannelDoc>({ filters: { platform } as Partial<ChannelConnection> });
+    if (docs[0]) {
+      const connectedAt = new Date().toLocaleDateString("pt-PT", { day: "2-digit", month: "short", year: "numeric" });
+      await this.channels.update(docs[0].id, { connected: true, connected_at: connectedAt } as Partial<ChannelConnection>);
+    }
   }
 
   async disconnectChannel(platform: string): Promise<void> {
-    validateContract(
-      ChannelContract.connectRequestSchema,
-      { platform },
-      "SettingsChannelsService.disconnectChannel",
-    );
-    await new Promise((r) => setTimeout(r, 800));
+    validateContract(ChannelContract.connectRequestSchema, { platform }, "SettingsChannelsService.disconnectChannel");
+    const docs = await this.channels.findAll<ChannelDoc>({ filters: { platform } as Partial<ChannelConnection> });
+    if (docs[0]) {
+      await this.channels.update(docs[0].id, { connected: false } as Partial<ChannelConnection>);
+    }
   }
 
   async fetchAISettings(): Promise<AISettings> {
-    await new Promise((r) => setTimeout(r, 200));
-    return AISettingsContract.entitySchema.parse(MOCK_AI_SETTINGS);
+    const docs = await this.aiSettings.findAll<AISettings>();
+    return AISettingsContract.entitySchema.parse(docs[0]);
   }
 
   async saveAISettings(settings: AISettings): Promise<void> {
-    validateContract(
-      AISettingsContract.entitySchema,
-      settings,
-      "SettingsChannelsService.saveAISettings",
-    );
-    await new Promise((r) => setTimeout(r, 600));
+    validateContract(AISettingsContract.entitySchema, settings, "SettingsChannelsService.saveAISettings");
+    const docs = await this.aiSettings.findAll<AISettingsDoc>();
+    if (docs[0]) {
+      await this.aiSettings.update(docs[0].id, settings);
+    }
   }
 }
 

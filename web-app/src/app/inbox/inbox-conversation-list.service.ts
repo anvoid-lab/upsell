@@ -4,29 +4,38 @@ import { BaseRepository } from "@core/repository";
 import {
   ConversationContract,
   type Conversation,
+  type ConversationDoc,
   type ConversationStatus,
+  type Message,
   type Platform,
 } from "@core/contracts";
 import { mongodbConnection } from "@db/client";
-import { MOCK_CONVERSATIONS } from "@/lib/mock-data";
 
 class InboxConversationListService {
-  private readonly conversations = new BaseRepository<Conversation>({
+  private readonly conversations = new BaseRepository<ConversationDoc>({
     collection: "conversations",
     client: mongodbConnection,
   });
 
+  private readonly messages = new BaseRepository<Message>({
+    collection: "messages",
+    client: mongodbConnection,
+  });
+
   async fetchConversations(): Promise<Conversation[]> {
-    await new Promise((r) => setTimeout(r, 300));
-    return ConversationContract.listResponseSchema.parse({
-      conversations: MOCK_CONVERSATIONS,
-    }).conversations;
+    const docs = await this.conversations.findAll<ConversationDoc>();
+    return ConversationContract.listResponseSchema.parse({ conversations: docs }).conversations;
   }
 
   async fetchConversationById(id: string): Promise<Conversation | null> {
-    await new Promise((r) => setTimeout(r, 100));
-    const conversation = MOCK_CONVERSATIONS.find((c) => c.id === id) ?? null;
-    return ConversationContract.detailResponseSchema.parse({ conversation }).conversation;
+    const [doc, msgs] = await Promise.all([
+      this.conversations.findById<ConversationDoc>(id),
+      this.messages.findAll<Message>({ filters: { conversation_id: id } as Partial<Message> }),
+    ]);
+    if (!doc) return null;
+    return ConversationContract.detailResponseSchema.parse({
+      conversation: { ...doc, messages: msgs },
+    }).conversation;
   }
 
   filterByStatus(conversations: Conversation[], status: ConversationStatus): Conversation[] {
