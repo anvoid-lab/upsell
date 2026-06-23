@@ -24,6 +24,18 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+config/jarvis.yaml
+web-app/config/jarvis.yaml
+
+# Local agent and workspace state
+.jarvis/
+.opencode/
+.claude/commands/
+obsidian-vault/
+web-app/.jarvis/
+web-app/.opencode/
+web-app/.claude/commands/
+web-app/obsidian-vault/
 
 # OS and editor files
 .DS_Store
