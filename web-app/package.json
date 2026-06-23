@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "seed": "tsx --env-file=.env.local database/seed.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.4",
@@ -22,11 +23,13 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.15.0",
     "lucide-react": "^0.513.0",
+    "mongodb": "^7.3.0",
     "next": "^16.2.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.3",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^2.6.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -38,6 +41,7 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

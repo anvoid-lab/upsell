@@ -20,7 +20,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({ conversation }) 
   const [noteText, setNoteText]       = useState("");
   const [noteSaved, setNoteSaved]     = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [followUps, setFollowUps]     = useState<FollowUp[]>(conversation?.followUps ?? []);
+  const [followUps, setFollowUps]     = useState<FollowUp[]>(conversation?.follow_ups ?? []);
 
   const displayFollowUps = conversation ? followUps : [];
 
@@ -45,7 +45,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({ conversation }) 
     );
   }
 
-  const { contact, productInterest } = conversation;
+  const { contact, product_interest } = conversation;
 
   return (
     <>
@@ -60,7 +60,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({ conversation }) 
           {([
             ["Name",          contact.name],
             ["Channel",       <span className="capitalize">{contact.platform}</span>],
-            ["First contact", contact.firstContact],
+            ["First contact", contact.first_contact],
             ["Status",        <StatusBadge status={contact.status} />],
           ] as [string, React.ReactNode][]).map(([k, v], i) => (
             <div key={i} className="flex justify-between items-center mb-1.5">
@@ -71,17 +71,17 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({ conversation }) 
         </div>
 
         {/* Product */}
-        {productInterest && (
+        {product_interest && (
           <div className="px-4 py-3 border-b border-zinc-200">
             <SectionLabel className="mb-2.5">Product interest</SectionLabel>
             {([
-              ["Item",  productInterest.item],
-              ["Price", productInterest.price],
-              ["Stock", productInterest.stock !== null
+              ["Item",  product_interest.item],
+              ["Price", product_interest.price],
+              ["Stock", product_interest.stock !== null
                 ? (
-                  <span className={cn("flex items-center gap-1", productInterest.isLowStock ? "text-red-500 font-semibold" : "text-zinc-800")}>
-                    {productInterest.isLowStock && <AlertTriangle className="w-3 h-3" />}
-                    {productInterest.isLowStock ? `${productInterest.stock} left` : `${productInterest.stock} in stock`}
+                  <span className={cn("flex items-center gap-1", product_interest.is_low_stock ? "text-red-500 font-semibold" : "text-zinc-800")}>
+                    {product_interest.is_low_stock && <AlertTriangle className="w-3 h-3" />}
+                    {product_interest.is_low_stock ? `${product_interest.stock} left` : `${product_interest.stock} in stock`}
                   </span>
                 ) : "—"
               ],
@@ -128,7 +128,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({ conversation }) 
                     </Badge>
                   </div>
                   <p className="text-[10px] text-zinc-400 leading-relaxed">"{fu.message}"</p>
-                  <p className="text-[10px] text-zinc-300 mt-1">{fu.scheduledFor ?? fu.sentAt}</p>
+                  <p className="text-[10px] text-zinc-300 mt-1">{fu.scheduled_for ?? fu.sent_at}</p>
                 </div>
               ))}
               <Button
@@ -222,13 +222,13 @@ const ScheduleDialog: FC<{
     if (!message.trim()) return;
     const fu: FollowUp = {
       id: `fu-${Date.now()}`,
-      conversationId,
-      contactName,
+      conversation_id: conversationId,
+      contact_name: contactName,
       title: "Manual follow-up",
       message: message.trim(),
       status: "scheduled",
       type: "upsell",
-      scheduledFor: `In ${hours}h`,
+      scheduled_for: `In ${hours}h`,
     };
     onSave(fu);
     setMessage("");

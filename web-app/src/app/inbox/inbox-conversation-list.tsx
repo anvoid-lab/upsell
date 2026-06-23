@@ -19,13 +19,14 @@ interface InboxConversationListProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   statusOverrides?: Record<string, ConversationStatus>;
+  initialConversations: Conversation[];
 }
 
 const MAX_RECENT = 5;
 
-export const InboxConversationList: FC<InboxConversationListProps> = ({ selectedId, onSelect, statusOverrides = {} }) => {
+export const InboxConversationList: FC<InboxConversationListProps> = ({ selectedId, onSelect, statusOverrides = {}, initialConversations }) => {
   const { filtered, conversations: allConversations, activeTab, isLoading, setActiveTab } =
-    useConversationList(selectedId, statusOverrides);
+    useConversationList(selectedId, statusOverrides, initialConversations);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,7 +61,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({ selected
   const searchResults = searchQuery.trim()
     ? allConversations.filter(c =>
         c.contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+        c.last_message.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : [];
 
@@ -200,7 +201,7 @@ const ConversationRow: FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ conversation, isActive, onClick }) => {
-  const { contact, lastMessage, lastMessageAt, unread, aiScheduled } = conversation;
+  const { contact, last_message, last_message_at, unread, ai_scheduled } = conversation;
 
   return (
     <button
@@ -210,16 +211,16 @@ const ConversationRow: FC<{
         isActive ? "bg-zinc-50" : "hover:bg-zinc-50/60"
       )}
     >
-      <Avatar initials={contact.initials} bg={contact.avatarBg} color={contact.avatarColor} />
+      <Avatar initials={contact.initials} bg={contact.avatar_bg} color={contact.avatar_color} />
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline mb-0.5">
           <span className={cn("text-xs truncate", unread ? "font-bold text-zinc-900" : "font-semibold text-zinc-800")}>{contact.name}</span>
-          <span className="text-[10px] text-zinc-400 ml-1 flex-shrink-0">{lastMessageAt}</span>
+          <span className="text-[10px] text-zinc-400 ml-1 flex-shrink-0">{last_message_at}</span>
         </div>
-        <p className={cn("text-[11px] truncate", unread ? "text-zinc-700 font-medium" : "text-zinc-400")}>{lastMessage}</p>
+        <p className={cn("text-[11px] truncate", unread ? "text-zinc-700 font-medium" : "text-zinc-400")}>{last_message}</p>
         <div className="flex items-center gap-1.5 mt-1.5">
           <PlatformBadge platform={contact.platform} />
-          {aiScheduled && (
+          {ai_scheduled && (
             <Badge variant="secondary" className="text-[10px] px-2 py-0 rounded-full h-4 bg-violet-50 text-violet-600 border border-violet-200/60 hover:bg-violet-50">
               AI scheduled
             </Badge>
@@ -239,7 +240,7 @@ const SearchResultRow: FC<{
   onClick: () => void;
   query?: string;
 }> = ({ conversation, isActive, onClick, query }) => {
-  const { contact, lastMessage, lastMessageAt } = conversation;
+  const { contact, last_message, last_message_at } = conversation;
 
   const highlight = (text: string) => {
     if (!query) return <>{text}</>;
@@ -262,13 +263,13 @@ const SearchResultRow: FC<{
         isActive ? "bg-zinc-50" : "hover:bg-zinc-50"
       )}
     >
-      <Avatar initials={contact.initials} bg={contact.avatarBg} color={contact.avatarColor} size="sm" />
+      <Avatar initials={contact.initials} bg={contact.avatar_bg} color={contact.avatar_color} size="sm" />
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline">
           <span className="text-xs font-semibold text-zinc-900 truncate">{highlight(contact.name)}</span>
-          <span className="text-[10px] text-zinc-400 ml-2 flex-shrink-0">{lastMessageAt}</span>
+          <span className="text-[10px] text-zinc-400 ml-2 flex-shrink-0">{last_message_at}</span>
         </div>
-        <p className="text-[11px] text-zinc-400 truncate mt-0.5">{highlight(lastMessage)}</p>
+        <p className="text-[11px] text-zinc-400 truncate mt-0.5">{highlight(last_message)}</p>
       </div>
       <PlatformBadge platform={contact.platform} />
     </button>

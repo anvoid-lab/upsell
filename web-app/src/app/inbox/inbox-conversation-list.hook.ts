@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Conversation, ConversationStatus } from "@/types";
-import { inboxConversationListService } from "./inbox-conversation-list.service";
 
 interface UseConversationListReturn {
   conversations: Conversation[];
@@ -17,28 +16,28 @@ interface UseConversationListReturn {
 
 export function useConversationList(
   selectedId: string | null,
-  statusOverrides: Record<string, ConversationStatus> = {}
+  statusOverrides: Record<string, ConversationStatus> = {},
+  initialConversations: Conversation[] = [],
 ): UseConversationListReturn {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations] = useState<Conversation[]>(initialConversations);
   const [activeTab, setActiveTab] = useState<ConversationStatus>("open");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    inboxConversationListService.fetchConversations().then((data) => {
-      setConversations(data);
-      setIsLoading(false);
-    });
-  }, []);
-
-  const withOverrides = conversations.map(c =>
-    statusOverrides[c.id] ? { ...c, status: statusOverrides[c.id] } : c
+  const withOverrides = conversations.map((c) =>
+    statusOverrides[c.id] ? { ...c, status: statusOverrides[c.id] } : c,
   );
-  const byStatus = inboxConversationListService.filterByStatus(withOverrides, activeTab);
-  const filtered = searchQuery
-    ? inboxConversationListService.searchConversations(byStatus, searchQuery)
+
+  const byStatus = withOverrides.filter((c) => c.status === activeTab);
+
+  const filtered = searchQuery.trim()
+    ? byStatus.filter(
+        (c) =>
+          c.contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          c.last_message.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
     : byStatus;
-  const unreadCount = inboxConversationListService.countUnread(withOverrides);
+
+  const unreadCount = withOverrides.filter((c) => c.unread).length;
 
   return {
     conversations: withOverrides,
@@ -46,7 +45,7 @@ export function useConversationList(
     activeTab,
     searchQuery,
     unreadCount,
-    isLoading,
+    isLoading: false,
     setActiveTab,
     setSearchQuery,
   };

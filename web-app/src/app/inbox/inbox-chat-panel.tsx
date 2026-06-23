@@ -185,7 +185,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({ selectedId, onStatusCh
 
       {/* ── Header ── */}
       <div className="h-[52px] px-4 border-b border-zinc-200 flex items-center gap-2 flex-shrink-0 bg-white">
-        <Avatar initials={contact.initials} bg={contact.avatarBg} color={contact.avatarColor} size="sm" />
+        <Avatar initials={contact.initials} bg={contact.avatar_bg} color={contact.avatar_color} size="sm" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-zinc-900 leading-none">{contact.name}</p>
           <p className="text-[10px] text-zinc-400 mt-0.5 capitalize">{contact.platform} · Active now</p>
@@ -498,7 +498,7 @@ const MessageBubble: FC<{ message: Message }> = ({ message }) => {
       </div>
       <div className="flex items-center gap-1.5 mt-1 px-1">
         <span className="text-[10px] text-zinc-400">{message.timestamp}</span>
-        {message.sentByAI && (
+        {message.sent_by_ai && (
           <span className="flex items-center gap-0.5 text-[10px] text-indigo-400 font-medium">
             <Sparkles className="w-2.5 h-2.5" /> VendAI
           </span>

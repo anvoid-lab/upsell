@@ -2,8 +2,14 @@
 
 import { useState, useEffect } from "react";
 import type { Conversation, AISuggestion, Message } from "@/types";
-import { inboxConversationListService } from "./inbox-conversation-list.service";
-import { inboxChatPanelService } from "./inbox-chat-panel.service";
+import type { FollowUpType } from "@core/contracts";
+import {
+  fetchConversationAction,
+  fetchAISuggestionAction,
+  sendMessageAction,
+  scheduleFollowUpAction,
+  markAsResolvedAction,
+} from "./actions";
 
 interface UseChatPanelReturn {
   conversation: Conversation | null;
@@ -42,8 +48,8 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
     setSuggestionStatus("idle");
 
     Promise.all([
-      inboxConversationListService.fetchConversationById(selectedId),
-      inboxChatPanelService.fetchAISuggestion(selectedId),
+      fetchConversationAction(selectedId),
+      fetchAISuggestionAction(selectedId),
     ]).then(([conv, sug]) => {
       setConversation(conv);
       setMessages(conv?.messages ?? []);
@@ -55,10 +61,10 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
   const handleSendReply = async () => {
     if (!replyText.trim() || !selectedId) return;
     setIsSending(true);
-    await inboxChatPanelService.sendMessage(selectedId, replyText);
+    await sendMessageAction(selectedId, replyText);
     const newMsg: Message = {
       id: `msg-${Date.now()}`,
-      conversationId: selectedId,
+      conversation_id: selectedId,
       content: replyText,
       direction: "out",
       timestamp: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
@@ -73,14 +79,14 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
     const text = overrideText ?? suggestion?.message;
     if (!text || !selectedId) return;
     setSuggestionStatus("sending");
-    await inboxChatPanelService.sendMessage(selectedId, text);
+    await sendMessageAction(selectedId, text);
     const newMsg: Message = {
       id: `msg-ai-${Date.now()}`,
-      conversationId: selectedId,
+      conversation_id: selectedId,
       content: text,
       direction: "out",
       timestamp: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
-      sentByAI: !overrideText,
+      sent_by_ai: !overrideText,
       read: true,
     };
     setMessages((prev) => [...prev, newMsg]);
@@ -90,7 +96,7 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
   const handleScheduleSuggestion = async (hours: number) => {
     if (!suggestion || !selectedId) return;
     setSuggestionStatus("sending");
-    await inboxChatPanelService.scheduleFollowUp(selectedId, suggestion.message, hours, suggestion.type);
+    await scheduleFollowUpAction(selectedId, suggestion.message, hours, suggestion.type as FollowUpType);
     setSuggestionStatus("scheduled");
   };
 

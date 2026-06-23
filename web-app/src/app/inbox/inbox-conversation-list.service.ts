@@ -1,15 +1,32 @@
-import type { Conversation, ConversationStatus, Platform } from "@/types";
+import "server-only";
+
+import { BaseRepository } from "@core/repository";
+import {
+  ConversationContract,
+  type Conversation,
+  type ConversationStatus,
+  type Platform,
+} from "@core/contracts";
+import { mongodbConnection } from "@db/client";
 import { MOCK_CONVERSATIONS } from "@/lib/mock-data";
 
 class InboxConversationListService {
+  private readonly conversations = new BaseRepository<Conversation>({
+    collection: "conversations",
+    client: mongodbConnection,
+  });
+
   async fetchConversations(): Promise<Conversation[]> {
     await new Promise((r) => setTimeout(r, 300));
-    return MOCK_CONVERSATIONS;
+    return ConversationContract.listResponseSchema.parse({
+      conversations: MOCK_CONVERSATIONS,
+    }).conversations;
   }
 
   async fetchConversationById(id: string): Promise<Conversation | null> {
     await new Promise((r) => setTimeout(r, 100));
-    return MOCK_CONVERSATIONS.find((c) => c.id === id) ?? null;
+    const conversation = MOCK_CONVERSATIONS.find((c) => c.id === id) ?? null;
+    return ConversationContract.detailResponseSchema.parse({ conversation }).conversation;
   }
 
   filterByStatus(conversations: Conversation[], status: ConversationStatus): Conversation[] {
@@ -25,7 +42,7 @@ class InboxConversationListService {
     return conversations.filter(
       (c) =>
         c.contact.name.toLowerCase().includes(q) ||
-        c.lastMessage.toLowerCase().includes(q)
+        c.last_message.toLowerCase().includes(q)
     );
   }
 

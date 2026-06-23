@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Next.js (web-app)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "web-app",
+      "port": 3000
+    },
+    {
+      "name": "MongoDB (Docker)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "mongo"],
+      "port": 27018
+    }
+  ]
+}
