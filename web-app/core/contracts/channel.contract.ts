@@ -5,8 +5,8 @@ const typeSchema = z.enum(["whatsapp", "instagram", "facebook"]);
 const connectionSchema = z.object({
   platform: typeSchema,
   connected: z.boolean(),
-  account_name: z.string().optional(),
-  connected_at: z.string().optional(),
+  account_name: z.string().nullish(),
+  connected_at: z.string().nullish(),
 });
 
 const connectRequestSchema = z.object({

@@ -11,8 +11,8 @@ const entitySchema = z.object({
   message: z.string().min(1),
   status: statusSchema,
   type: typeSchema,
-  scheduled_for: z.string().optional(),
-  sent_at: z.string().optional(),
+  scheduled_for: z.string().nullish(),
+  sent_at: z.string().nullish(),
 });
 
 const scheduleRequestSchema = z.object({

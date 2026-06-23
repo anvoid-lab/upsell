@@ -16,7 +16,7 @@ const docSchema = z.object({
   status: statusSchema,
   unread: z.boolean(),
   ai_scheduled: z.boolean(),
-  product_interest: ProductInterestContract.entitySchema.optional(),
+  product_interest: ProductInterestContract.entitySchema.nullish(),
   follow_ups: z.array(FollowUpContract.entitySchema),
 });
 

@@ -10,7 +10,7 @@ const entitySchema = z.object({
   avatar_bg: z.string().min(1),
   avatar_color: z.string().min(1),
   platform: ChannelContract.typeSchema,
-  phone: z.string().optional(),
+  phone: z.string().nullish(),
   first_contact: z.string(),
   status: statusSchema,
 });

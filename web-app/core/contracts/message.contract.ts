@@ -8,7 +8,7 @@ const entitySchema = z.object({
   content: z.string().min(1),
   direction: directionSchema,
   timestamp: z.string(),
-  sent_by_ai: z.boolean().optional(),
+  sent_by_ai: z.boolean().nullish(),
   read: z.boolean(),
 });
 
