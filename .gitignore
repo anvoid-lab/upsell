@@ -36,6 +36,8 @@ web-app/.jarvis/
 web-app/.opencode/
 web-app/.claude/commands/
 web-app/obsidian-vault/
+web-app/AGENTS.md
+web-app/CLAUDE.md
 
 # OS and editor files
 .DS_Store
