@@ -1,49 +1,42 @@
-import { mongodbConnection } from "./client";
-import { BaseRepository } from "../core/repository";
+import { createClient } from "@supabase/supabase-js";
 import {
   ConversationContract,
   MessageContract,
   ChannelContract,
   AISettingsContract,
   AISuggestionContract,
-  UserContract,
   validateContract,
   type ConversationDoc,
   type Message,
   type ChannelConnection,
   type AISettings,
   type AISuggestion,
-  type User,
 } from "../core/contracts";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Supabase client (sem SSR — script standalone) ────────────
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+);
+
+// ─── Helpers ──────────────────────────────────────────────────
 
 function id(prefix: string, n: number | string) {
   return `${prefix}-${n}`;
 }
 
 function ts(minutesAgo: number): string {
-  const d = new Date(Date.now() - minutesAgo * 60 * 1000);
-  return d.toISOString();
+  return new Date(Date.now() - minutesAgo * 60 * 1000).toISOString();
 }
 
 function timeLabel(minutesAgo: number): string {
-  const d = new Date(Date.now() - minutesAgo * 60 * 1000);
-  return d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
+  return new Date(Date.now() - minutesAgo * 60 * 1000).toLocaleTimeString("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-// ─── Admin user ───────────────────────────────────────────────────────────────
-
-const adminUser: User = {
-  id: id("user", 1),
-  name: "Rosário Massango",
-  email: "rosariomassango@gmail.com",
-  role: "admin",
-  business_name: "Shop & Go Luanda",
-  created_at: ts(60 * 24 * 30),
-};
-
-// ─── Conversations (sem messages — normalizadas) ───────────────────────────────
+// ─── Conversations ────────────────────────────────────────────
 
 const conversations: ConversationDoc[] = [
   {
@@ -220,51 +213,40 @@ const conversations: ConversationDoc[] = [
   },
 ];
 
-// ─── Messages (colecção separada, ligadas por conversation_id) ─────────────────
+// ─── Messages ─────────────────────────────────────────────────
 
 const messages: Message[] = [
-  // conv-1 — Esperança / capulanas
   { id: id("msg", "1-1"), conversation_id: id("conv", 1), content: "Bom dia! Vi que vendem capulanas. Têm com padrão tradicional angolano?", direction: "in",  timestamp: timeLabel(70),  read: true },
-  { id: id("msg", "1-2"), conversation_id: id("conv", 1), content: "Bom dia, Esperança! Sim, temos vários padrões tradicionais. Envio fotos já!",              direction: "out", timestamp: timeLabel(65),  read: true },
-  { id: id("msg", "1-3"), conversation_id: id("conv", 1), content: "Tem capulanas de Angola com padrão tradicional?",                                           direction: "in",  timestamp: timeLabel(12),  read: false },
-
-  // conv-2 — Carlos / Samsung
-  { id: id("msg", "2-1"), conversation_id: id("conv", 2), content: "Boa tarde! Tenho interesse no Samsung Galaxy A55.",                                          direction: "in",  timestamp: timeLabel(180), read: true },
-  { id: id("msg", "2-2"), conversation_id: id("conv", 2), content: "Boa tarde, Carlos! O A55 está disponível. Temos em preto e azul.",                          direction: "out", timestamp: timeLabel(170), read: true },
-  { id: id("msg", "2-3"), conversation_id: id("conv", 2), content: "Inclui garantia?",                                                                           direction: "in",  timestamp: timeLabel(100), read: true },
-  { id: id("msg", "2-4"), conversation_id: id("conv", 2), content: "Sim! 12 meses de garantia e protector de ecrã incluído.",                                   direction: "out", timestamp: timeLabel(90),  read: true },
-  { id: id("msg", "2-5"), conversation_id: id("conv", 2), content: "Qual é o preço do Samsung Galaxy A55?",                                                      direction: "in",  timestamp: timeLabel(35),  read: false },
-
-  // conv-3 — Benedita / vestido
-  { id: id("msg", "3-1"), conversation_id: id("conv", 3), content: "Olá! Vi os vossos vestidos no Facebook. São lindos!",                                        direction: "in",  timestamp: timeLabel(200), read: true },
-  { id: id("msg", "3-2"), conversation_id: id("conv", 3), content: "Muito obrigada, Benedita! Temos novas chegadas esta semana.",                                direction: "out", timestamp: timeLabel(190), read: true },
-  { id: id("msg", "3-3"), conversation_id: id("conv", 3), content: "Têm vestidos de festa disponíveis para o fim de semana?",                                   direction: "in",  timestamp: timeLabel(90),  read: true },
-
-  // conv-4 — Filipe / sapatos (resolvida)
-  { id: id("msg", "4-1"), conversation_id: id("conv", 4), content: "Boa tarde, queria encomendar os sapatos de couro tamanho 43.",                               direction: "in",  timestamp: timeLabel(60 * 24 * 3), read: true },
-  { id: id("msg", "4-2"), conversation_id: id("conv", 4), content: "Perfeito, Filipe! Reservado. Entrega em 2 dias úteis.",                                      direction: "out", timestamp: timeLabel(60 * 24 * 3 - 10), read: true },
-  { id: id("msg", "4-3"), conversation_id: id("conv", 4), content: "Pago via transferência ou M-Pesa?",                                                          direction: "in",  timestamp: timeLabel(60 * 24 * 2), read: true },
-  { id: id("msg", "4-4"), conversation_id: id("conv", 4), content: "Ambas! M-Pesa: 923 000 000 ou transferência para o IBAN que enviamos por email.",            direction: "out", timestamp: timeLabel(60 * 24 * 2 - 5), read: true },
-  { id: id("msg", "4-5"), conversation_id: id("conv", 4), content: "Obrigado! Os sapatos chegaram em perfeito estado.",                                          direction: "in",  timestamp: timeLabel(60 * 3), read: true },
-
-  // conv-5 — Lúcia / bolsa
-  { id: id("msg", "5-1"), conversation_id: id("conv", 5), content: "Olá! Adoro a bolsa que publicaram hoje no Instagram.",                                       direction: "in",  timestamp: timeLabel(45),  read: true },
-  { id: id("msg", "5-2"), conversation_id: id("conv", 5), content: "Boa tarde, Lúcia! É um dos nossos bestsellers. Temos em castanho e preto.",                 direction: "out", timestamp: timeLabel(40),  read: true },
-  { id: id("msg", "5-3"), conversation_id: id("conv", 5), content: "A bolsa que vi no Instagram ainda está disponível?",                                         direction: "in",  timestamp: timeLabel(20),  read: false },
-
-  // conv-6 — António / telemóveis
-  { id: id("msg", "6-1"), conversation_id: id("conv", 6), content: "Olá, queria saber mais sobre os telemóveis disponíveis.",                                    direction: "in",  timestamp: timeLabel(5),   read: false },
+  { id: id("msg", "1-2"), conversation_id: id("conv", 1), content: "Bom dia, Esperança! Sim, temos vários padrões tradicionais. Envio fotos já!", direction: "out", timestamp: timeLabel(65), read: true },
+  { id: id("msg", "1-3"), conversation_id: id("conv", 1), content: "Tem capulanas de Angola com padrão tradicional?", direction: "in", timestamp: timeLabel(12), read: false },
+  { id: id("msg", "2-1"), conversation_id: id("conv", 2), content: "Boa tarde! Tenho interesse no Samsung Galaxy A55.", direction: "in", timestamp: timeLabel(180), read: true },
+  { id: id("msg", "2-2"), conversation_id: id("conv", 2), content: "Boa tarde, Carlos! O A55 está disponível. Temos em preto e azul.", direction: "out", timestamp: timeLabel(170), read: true },
+  { id: id("msg", "2-3"), conversation_id: id("conv", 2), content: "Inclui garantia?", direction: "in", timestamp: timeLabel(100), read: true },
+  { id: id("msg", "2-4"), conversation_id: id("conv", 2), content: "Sim! 12 meses de garantia e protector de ecrã incluído.", direction: "out", timestamp: timeLabel(90), read: true },
+  { id: id("msg", "2-5"), conversation_id: id("conv", 2), content: "Qual é o preço do Samsung Galaxy A55?", direction: "in", timestamp: timeLabel(35), read: false },
+  { id: id("msg", "3-1"), conversation_id: id("conv", 3), content: "Olá! Vi os vossos vestidos no Facebook. São lindos!", direction: "in", timestamp: timeLabel(200), read: true },
+  { id: id("msg", "3-2"), conversation_id: id("conv", 3), content: "Muito obrigada, Benedita! Temos novas chegadas esta semana.", direction: "out", timestamp: timeLabel(190), read: true },
+  { id: id("msg", "3-3"), conversation_id: id("conv", 3), content: "Têm vestidos de festa disponíveis para o fim de semana?", direction: "in", timestamp: timeLabel(90), read: true },
+  { id: id("msg", "4-1"), conversation_id: id("conv", 4), content: "Boa tarde, queria encomendar os sapatos de couro tamanho 43.", direction: "in", timestamp: timeLabel(60 * 24 * 3), read: true },
+  { id: id("msg", "4-2"), conversation_id: id("conv", 4), content: "Perfeito, Filipe! Reservado. Entrega em 2 dias úteis.", direction: "out", timestamp: timeLabel(60 * 24 * 3 - 10), read: true },
+  { id: id("msg", "4-3"), conversation_id: id("conv", 4), content: "Pago via transferência ou M-Pesa?", direction: "in", timestamp: timeLabel(60 * 24 * 2), read: true },
+  { id: id("msg", "4-4"), conversation_id: id("conv", 4), content: "Ambas! M-Pesa: 923 000 000 ou transferência para o IBAN que enviamos por email.", direction: "out", timestamp: timeLabel(60 * 24 * 2 - 5), read: true },
+  { id: id("msg", "4-5"), conversation_id: id("conv", 4), content: "Obrigado! Os sapatos chegaram em perfeito estado.", direction: "in", timestamp: timeLabel(60 * 3), read: true },
+  { id: id("msg", "5-1"), conversation_id: id("conv", 5), content: "Olá! Adoro a bolsa que publicaram hoje no Instagram.", direction: "in", timestamp: timeLabel(45), read: true },
+  { id: id("msg", "5-2"), conversation_id: id("conv", 5), content: "Boa tarde, Lúcia! É um dos nossos bestsellers. Temos em castanho e preto.", direction: "out", timestamp: timeLabel(40), read: true },
+  { id: id("msg", "5-3"), conversation_id: id("conv", 5), content: "A bolsa que vi no Instagram ainda está disponível?", direction: "in", timestamp: timeLabel(20), read: false },
+  { id: id("msg", "6-1"), conversation_id: id("conv", 6), content: "Olá, queria saber mais sobre os telemóveis disponíveis.", direction: "in", timestamp: timeLabel(5), read: false },
 ];
 
-// ─── Channels ─────────────────────────────────────────────────────────────────
+// ─── Channels ─────────────────────────────────────────────────
 
 const channels: ChannelConnection[] = [
-  { platform: "whatsapp",  connected: true,  account_name: "Shop & Go Luanda",   connected_at: "15 Jan 2025" },
-  { platform: "instagram", connected: true,  account_name: "@shopandgo.angola",  connected_at: "20 Fev 2025" },
+  { platform: "whatsapp",  connected: true,  account_name: "Shop & Go Luanda",  connected_at: "15 Jan 2025" },
+  { platform: "instagram", connected: true,  account_name: "@shopandgo.angola", connected_at: "20 Fev 2025" },
   { platform: "facebook",  connected: false },
 ];
 
-// ─── AI Settings ──────────────────────────────────────────────────────────────
+// ─── AI Settings ──────────────────────────────────────────────
 
 const aiSettings: AISettings = {
   follow_up_delay_hours: 4,
@@ -276,87 +258,84 @@ const aiSettings: AISettings = {
   language: "pt",
 };
 
-// ─── AI Suggestions ───────────────────────────────────────────────────────────
+// ─── AI Suggestions ───────────────────────────────────────────
 
 const aiSuggestions: AISuggestion[] = [
-  {
-    conversation_id: id("conv", 1),
-    message: "Olá Esperança! Tenho capulanas tradicionais angolanas a 2.500 Kz. São as últimas unidades — posso reservar uma para si?",
-    type: "urgency",
-  },
-  {
-    conversation_id: id("conv", 2),
-    message: "Olá Carlos! O Samsung Galaxy A55 está a 85.000 Kz com garantia de 12 meses. Posso processar a sua encomenda hoje mesmo?",
-    type: "cart_recovery",
-  },
-  {
-    conversation_id: id("conv", 5),
-    message: "Boa tarde, Lúcia! A bolsa ainda está disponível em castanho e preto. Temos poucas unidades — quer que reserve uma?",
-    type: "urgency",
-  },
-  {
-    conversation_id: id("conv", 6),
-    message: "Olá António! Temos Samsung, Tecno e Itel com ótimos preços. Qual gama prefere — entrada, médio ou topo de gama?",
-    type: "upsell",
-  },
+  { conversation_id: id("conv", 1), message: "Olá Esperança! Tenho capulanas tradicionais angolanas a 2.500 Kz. São as últimas unidades — posso reservar uma para si?", type: "urgency" },
+  { conversation_id: id("conv", 2), message: "Olá Carlos! O Samsung Galaxy A55 está a 85.000 Kz com garantia de 12 meses. Posso processar a sua encomenda hoje mesmo?", type: "cart_recovery" },
+  { conversation_id: id("conv", 5), message: "Boa tarde, Lúcia! A bolsa ainda está disponível em castanho e preto. Temos poucas unidades — quer que reserve uma?", type: "urgency" },
+  { conversation_id: id("conv", 6), message: "Olá António! Temos Samsung, Tecno e Itel com ótimos preços. Qual gama prefere — entrada, médio ou topo de gama?", type: "upsell" },
 ];
 
-// ─── Seed ─────────────────────────────────────────────────────────────────────
+// ─── Seed ─────────────────────────────────────────────────────
 
 async function seed() {
-  console.log("Connecting to MongoDB...");
-  const db = await mongodbConnection();
+  console.log("Connecting to Supabase...");
 
-  const collections = ["users", "conversations", "messages", "channels", "aiSettings", "aiSuggestions"];
-  for (const col of collections) {
-    await db.collection(col).drop().catch(() => null);
-    console.log(`Dropped collection: ${col}`);
+  // Limpar tabelas por ordem (FKs)
+  const tables = ["ai_suggestions", "follow_ups", "messages", "conversations", "channels", "ai_settings"];
+  for (const table of tables) {
+    const { error } = await supabase.from(table).delete().not("id", "is", null);
+    if (error) {
+      console.warn(`  ! Could not clear ${table}: ${error.message}`);
+    } else {
+      console.log(`  Cleared: ${table}`);
+    }
   }
 
-  const userRepo         = new BaseRepository<User>({ collection: "users", client: mongodbConnection });
-  const conversationRepo = new BaseRepository<ConversationDoc>({ collection: "conversations", client: mongodbConnection });
-  const messageRepo      = new BaseRepository<Message>({ collection: "messages", client: mongodbConnection });
-  const channelRepo      = new BaseRepository<ChannelConnection>({ collection: "channels", client: mongodbConnection });
-  const aiSettingsRepo   = new BaseRepository<AISettings>({ collection: "aiSettings", client: mongodbConnection });
-  const suggestionRepo   = new BaseRepository<AISuggestion>({ collection: "aiSuggestions", client: mongodbConnection });
+  // Conversations (sem follow_ups — vão para tabela separada)
+  console.log("\nInserting conversations...");
+  const convDocs = conversations.map((c) => {
+    const { follow_ups: _, ...doc } = c;
+    return validateContract(ConversationContract.docSchema.omit({ follow_ups: true } as never), doc, `seed:conv:${c.id}`);
+  });
+  const { error: convErr } = await supabase.from("conversations").insert(
+    convDocs.map((c) => ({ ...c, contact: c.contact, product_interest: c.product_interest ?? null }))
+  );
+  if (convErr) throw convErr;
+  console.log(`  ✓ ${convDocs.length} conversations`);
 
-  console.log("\nInserting admin user...");
-  const validatedUser = validateContract(UserContract.entitySchema, adminUser, "seed:user:admin");
-  await userRepo.create(validatedUser);
-  console.log("  ✓ 1 user (admin)");
-
-  console.log("Validating and inserting conversations...");
-  for (const conv of conversations) {
-    const validated = validateContract(ConversationContract.docSchema, conv, `seed:conversation:${conv.id}`);
-    await conversationRepo.create(validated);
+  // Follow-ups (extraídos das conversations)
+  const allFollowUps = conversations.flatMap((c) => c.follow_ups);
+  if (allFollowUps.length > 0) {
+    const { error: fuErr } = await supabase.from("follow_ups").insert(allFollowUps);
+    if (fuErr) throw fuErr;
+    console.log(`  ✓ ${allFollowUps.length} follow_ups`);
   }
-  console.log(`  ✓ ${conversations.length} conversations`);
 
-  console.log("Validating and inserting messages...");
-  for (const msg of messages) {
-    const validated = validateContract(MessageContract.entitySchema, msg, `seed:message:${msg.id}`);
-    await messageRepo.create(validated);
-  }
-  console.log(`  ✓ ${messages.length} messages`);
+  // Messages
+  console.log("Inserting messages...");
+  const validatedMsgs = messages.map((m) =>
+    validateContract(MessageContract.entitySchema, m, `seed:msg:${m.id}`)
+  );
+  const { error: msgErr } = await supabase.from("messages").insert(validatedMsgs);
+  if (msgErr) throw msgErr;
+  console.log(`  ✓ ${validatedMsgs.length} messages`);
 
+  // Channels
   console.log("Inserting channels...");
-  for (const ch of channels) {
-    const validated = validateContract(ChannelContract.connectionSchema, ch, `seed:channel:${ch.platform}`);
-    await channelRepo.create(validated);
-  }
-  console.log(`  ✓ ${channels.length} channels`);
+  const validatedChannels = channels.map((ch) =>
+    validateContract(ChannelContract.connectionSchema, ch, `seed:channel:${ch.platform}`)
+  );
+  const { error: chErr } = await supabase.from("channels").insert(validatedChannels);
+  if (chErr) throw chErr;
+  console.log(`  ✓ ${validatedChannels.length} channels`);
 
+  // AI Settings
   console.log("Inserting AI settings...");
   const validatedSettings = validateContract(AISettingsContract.entitySchema, aiSettings, "seed:aiSettings");
-  await aiSettingsRepo.create(validatedSettings);
-  console.log("  ✓ 1 aiSettings document");
+  const { error: aiErr } = await supabase.from("ai_settings").insert(validatedSettings);
+  if (aiErr) throw aiErr;
+  console.log("  ✓ 1 ai_settings");
 
+  // AI Suggestions
   console.log("Inserting AI suggestions...");
-  for (const sug of aiSuggestions) {
-    const validated = validateContract(AISuggestionContract.entitySchema, sug, `seed:suggestion:${sug.conversation_id}`);
-    await suggestionRepo.create(validated);
-  }
-  console.log(`  ✓ ${aiSuggestions.length} aiSuggestions`);
+  const validatedSuggestions = aiSuggestions.map((s) =>
+    validateContract(AISuggestionContract.entitySchema, s, `seed:suggestion:${s.conversation_id}`)
+  );
+  const { error: sugErr } = await supabase.from("ai_suggestions").insert(validatedSuggestions);
+  if (sugErr) throw sugErr;
+  console.log(`  ✓ ${validatedSuggestions.length} ai_suggestions`);
 
   console.log("\nSeed completed successfully.");
   process.exit(0);

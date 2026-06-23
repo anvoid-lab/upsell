@@ -1,17 +1,27 @@
-import { Db, MongoClient } from "mongodb";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
-let connectionPromise: Promise<Db> | null = null;
+export async function createSupabaseServerClient() {
+  const cookieStore = await cookies();
 
-export function mongodbConnection(): Promise<Db> {
-  if (!connectionPromise) {
-    const uri = process.env.MONGODB_URI;
-    const dbName = process.env.MONGODB_DB;
-
-    if (!uri) throw new Error("Missing env var: MONGODB_URI");
-    if (!dbName) throw new Error("Missing env var: MONGODB_DB");
-
-    connectionPromise = MongoClient.connect(uri).then((client) => client.db(dbName));
-  }
-
-  return connectionPromise;
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Server Component — cookies só podem ser escritos em Server Actions/Route Handlers
+          }
+        },
+      },
+    }
+  );
 }
