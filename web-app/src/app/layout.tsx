@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import "@/app/globals.css";
 import { AppSidebar } from "@/app/sidebar";
 import { ConfirmToastProvider } from "@/components/shared/confirm-toast";
+import { inboxConversationListService } from "@/app/inbox/inbox-conversation-list.service";
 
 export const metadata: Metadata = {
   title: "VendAI Dashboard",
   description: "Unified inbox and AI sales assistant",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const conversations = await inboxConversationListService.fetchConversations();
+  const unreadCount = inboxConversationListService.countUnread(conversations);
+
   return (
     <html lang="en">
       <head>
@@ -22,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             className="flex h-screen bg-white overflow-hidden"
             style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
           >
-            <AppSidebar />
+            <AppSidebar unreadCount={unreadCount} />
             {children}
           </div>
         </ConfirmToastProvider>

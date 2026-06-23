@@ -6,18 +6,16 @@ import { FC, useState } from "react";
 import { Inbox, BarChart2, Settings, PanelLeftOpen, PanelLeftClose, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { MOCK_CONVERSATIONS } from "@/lib/mock-data";
-
-const inboxCount = MOCK_CONVERSATIONS.filter(c => c.status === "open").length;
 
 interface NavItem { label: string; icon: LucideIcon; href: string; count?: number; }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "All messages", icon: Inbox,    href: "/inbox", count: inboxCount },
-  { label: "Analytics",    icon: BarChart2, href: "/analytics" },
-];
+interface AppSidebarProps { unreadCount: number; }
 
-export const AppSidebar: FC = () => {
+export const AppSidebar: FC<AppSidebarProps> = ({ unreadCount }) => {
+  const NAV_ITEMS: NavItem[] = [
+    { label: "All messages", icon: Inbox,    href: "/inbox", count: unreadCount },
+    { label: "Analytics",    icon: BarChart2, href: "/analytics" },
+  ];
   const [collapsed, setCollapsed] = useState(true);
   const pathname = usePathname();
 
