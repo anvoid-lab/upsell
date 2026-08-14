@@ -7,6 +7,7 @@ import {
   type AnalyticsOverviewResponse,
   type ConversationDataPoint,
   type ConversationDoc,
+  type FollowUp,
   type Message,
   type PlatformStat,
 } from "@core/contracts";
@@ -23,15 +24,21 @@ class AnalyticsOverviewService {
     client: createSupabaseServerClient,
   });
 
+  private readonly followUps = new BaseRepository<FollowUp>({
+    table: "follow_ups",
+    client: createSupabaseServerClient,
+  });
+
   async fetchOverview(): Promise<AnalyticsOverviewResponse> {
-    const [conversations, messages] = await Promise.all([
+    // follow_ups é tabela própria — não vem no select * de conversations.
+    const [conversations, messages, allFollowUps] = await Promise.all([
       this.conversations.findAll<ConversationDoc>(),
       this.messages.findAll<Message>(),
+      this.followUps.findAll<FollowUp>(),
     ]);
 
     const total = conversations.length;
     const resolved = conversations.filter((c) => c.status === "resolved").length;
-    const allFollowUps = conversations.flatMap((c) => c.follow_ups ?? []);
     const sentFollowUps = allFollowUps.filter((f) => f.status === "sent").length;
     const aiMessages = messages.filter((m) => m.sent_by_ai).length;
     const convRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
