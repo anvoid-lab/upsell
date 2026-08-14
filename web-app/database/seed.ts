@@ -30,6 +30,12 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, secretKey);
 
 // ─── Helpers ──────────────────────────────────────────────────
 
+/**
+ * Chave local (não é o id real da BD) usada só dentro deste ficheiro para
+ * cross-referenciar fixtures antes de inserir. Desde a migração 004, os ids
+ * de conversations/messages/follow_ups são bigint gerados pela BD — o seed
+ * não os inventa, captura-os depois do insert.
+ */
 function id(prefix: string, n: number | string) {
   return `${prefix}-${n}`;
 }
@@ -217,6 +223,8 @@ const conversations: ConversationDoc[] = [
 ];
 
 // ─── Messages ─────────────────────────────────────────────────
+// conversation_id aqui é a chave LOCAL (id("conv", n)) — trocada pelo id real
+// da BD no momento do insert, via conversationIdByLocalKey.
 
 const messages: Message[] = [
   { id: id("msg", "1-1"), conversation_id: id("conv", 1), content: "Bom dia! Vi que vendem capulanas. Têm com padrão tradicional angolano?", direction: "in",  timestamp: ts(70),  read: true },
@@ -262,6 +270,7 @@ const aiSettings: AISettings = {
 };
 
 // ─── AI Suggestions ───────────────────────────────────────────
+// conversation_id é também a chave LOCAL — remapeada abaixo.
 
 const aiSuggestions: AISuggestion[] = [
   { conversation_id: id("conv", 1), message: "Olá Esperança! Tenho capulanas tradicionais angolanas a 2.500 Kz. São as últimas unidades — posso reservar uma para si?", type: "urgency" },
@@ -392,34 +401,59 @@ async function seed() {
     }
   }
 
-  // Conversations (sem follow_ups — vão para tabela separada)
+  // Conversations (sem follow_ups — vão para tabela separada). Inseridas uma
+  // a uma: o id é gerado pela BD (migração 004), e capturado aqui para ligar
+  // messages/follow_ups/ai_suggestions à conversa certa a seguir.
   console.log("\nInserting conversations...");
-  const convDocs = conversations.map((c) => {
-    const { follow_ups: _, ...doc } = c;
-    return validateContract(ConversationContract.docSchema.omit({ follow_ups: true } as never), doc, `seed:conv:${c.id}`);
-  });
-  const { error: convErr } = await supabase.from("conversations").insert(
-    convDocs.map((c) => scoped({ ...c, contact: c.contact, product_interest: c.product_interest ?? null }))
-  );
-  if (convErr) throw convErr;
-  console.log(`  ✓ ${convDocs.length} conversations`);
+  const conversationIdByLocalKey = new Map<string, string>();
+  for (const c of conversations) {
+    const { follow_ups: _followUps, id: localKey, ...doc } = c;
+    const validated = validateContract(
+      ConversationContract.docSchema.omit({ follow_ups: true, id: true } as never),
+      doc,
+      `seed:conv:${localKey}`,
+    );
+    const { data, error } = await supabase
+      .from("conversations")
+      .insert(scoped({ ...validated, product_interest: validated.product_interest ?? null }))
+      .select("id")
+      .single();
+    if (error) throw error;
+    conversationIdByLocalKey.set(localKey, String(data.id));
+  }
+  console.log(`  ✓ ${conversations.length} conversations`);
 
   // Follow-ups (extraídos das conversations)
-  const allFollowUps = conversations.flatMap((c) => c.follow_ups);
+  const allFollowUps = conversations.flatMap((c) => {
+    const realConversationId = conversationIdByLocalKey.get(c.id)!;
+    return c.follow_ups.map(({ id: _localFuId, conversation_id: _localConvKey, ...fu }) =>
+      scoped({ ...fu, conversation_id: realConversationId }),
+    );
+  });
   if (allFollowUps.length > 0) {
-    const { error: fuErr } = await supabase.from("follow_ups").insert(allFollowUps.map(scoped));
+    const { error: fuErr } = await supabase.from("follow_ups").insert(allFollowUps);
     if (fuErr) throw fuErr;
     console.log(`  ✓ ${allFollowUps.length} follow_ups`);
   }
 
   // Messages
   console.log("Inserting messages...");
-  const validatedMsgs = messages.map((m) =>
-    validateContract(MessageContract.entitySchema, m, `seed:msg:${m.id}`)
-  );
-  const { error: msgErr } = await supabase.from("messages").insert(validatedMsgs.map(scoped));
+  const messageRows = messages.map((m) => {
+    const { id: _localMsgId, conversation_id: localConvKey, ...rest } = m;
+    const realConversationId = conversationIdByLocalKey.get(localConvKey);
+    if (!realConversationId) {
+      throw new Error(`seed:msg — chave local de conversa desconhecida "${localConvKey}"`);
+    }
+    const validated = validateContract(
+      MessageContract.entitySchema.omit({ id: true, conversation_id: true } as never),
+      rest,
+      `seed:msg:${m.id}`,
+    );
+    return scoped({ ...validated, conversation_id: realConversationId });
+  });
+  const { error: msgErr } = await supabase.from("messages").insert(messageRows);
   if (msgErr) throw msgErr;
-  console.log(`  ✓ ${validatedMsgs.length} messages`);
+  console.log(`  ✓ ${messageRows.length} messages`);
 
   // Channels
   console.log("Inserting channels...");
@@ -439,12 +473,21 @@ async function seed() {
 
   // AI Suggestions
   console.log("Inserting AI suggestions...");
-  const validatedSuggestions = aiSuggestions.map((s) =>
-    validateContract(AISuggestionContract.entitySchema, s, `seed:suggestion:${s.conversation_id}`)
-  );
-  const { error: sugErr } = await supabase.from("ai_suggestions").insert(validatedSuggestions.map(scoped));
+  const suggestionRows = aiSuggestions.map((s) => {
+    const realConversationId = conversationIdByLocalKey.get(s.conversation_id);
+    if (!realConversationId) {
+      throw new Error(`seed:suggestion — chave local de conversa desconhecida "${s.conversation_id}"`);
+    }
+    const validated = validateContract(
+      AISuggestionContract.entitySchema.omit({ conversation_id: true } as never),
+      { message: s.message, type: s.type },
+      `seed:suggestion:${s.conversation_id}`,
+    );
+    return scoped({ ...validated, conversation_id: realConversationId });
+  });
+  const { error: sugErr } = await supabase.from("ai_suggestions").insert(suggestionRows);
   if (sugErr) throw sugErr;
-  console.log(`  ✓ ${validatedSuggestions.length} ai_suggestions`);
+  console.log(`  ✓ ${suggestionRows.length} ai_suggestions`);
 
   console.log("\nSeed completed successfully.");
   process.exit(0);

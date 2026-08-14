@@ -9,7 +9,10 @@ const statusSchema = z.enum(["open", "pending", "resolved"]);
 
 // Raw DB shape — no messages (normalised into the messages table)
 const docSchema = z.object({
-  id: z.string(),
+  // id é bigint gerado pela BD (migração 004) — PostgREST pode devolvê-lo
+  // como number ou string consoante o driver; coage sempre para string, que
+  // é a forma opaca que o resto da app assume (chaves de Record, comparações).
+  id: z.coerce.string(),
   contact: ContactContract.entitySchema,
   last_message: z.string(),
   last_message_at: z.coerce.date(),
@@ -17,6 +20,9 @@ const docSchema = z.object({
   unread: z.boolean(),
   ai_scheduled: z.boolean(),
   product_interest: ProductInterestContract.entitySchema.nullish(),
+  // Id da conversa na plataforma externa (WhatsApp/Instagram/Facebook) —
+  // null até a integração real de canais (T-010) existir.
+  channel_conversation_id: z.string().nullish(),
   follow_ups: z.array(FollowUpContract.entitySchema),
 });
 

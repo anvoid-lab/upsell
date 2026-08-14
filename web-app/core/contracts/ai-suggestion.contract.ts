@@ -2,7 +2,8 @@ import { z } from "zod";
 import { FollowUpContract } from "./follow-up.contract";
 
 const entitySchema = z.object({
-  conversation_id: z.string(),
+  // conversation_id é bigint na BD (migração 004) — coage sempre para string.
+  conversation_id: z.coerce.string(),
   message: z.string().min(1),
   type: FollowUpContract.typeSchema,
 });

@@ -49,6 +49,7 @@ class InboxChatPanelService {
       "InboxChatPanelService.sendMessage",
     );
     const now = new Date();
+    // id é bigint gerado pela BD (migração 004) — não se especifica aqui.
     await this.messages.create({
       conversation_id: conversationId,
       content,
@@ -77,6 +78,7 @@ class InboxChatPanelService {
     const conv = await this.conversations.findById<ConversationDoc>(conversationId);
     const contactName = conv?.contact?.name ?? "Cliente";
     const scheduledFor = new Date(Date.now() + delayHours * 60 * 60 * 1000);
+    // id é bigint gerado pela BD (migração 004) — não se especifica aqui.
     await this.followUps.create({
       conversation_id: conversationId,
       contact_name: contactName,

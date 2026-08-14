@@ -4,8 +4,10 @@ const statusSchema = z.enum(["scheduled", "sent", "cancelled", "failed"]);
 const typeSchema = z.enum(["urgency", "upsell", "social_proof", "cart_recovery"]);
 
 const entitySchema = z.object({
-  id: z.string(),
-  conversation_id: z.string(),
+  // id e conversation_id são bigint gerados pela BD (migração 004) — coage
+  // sempre para string, a forma opaca que o resto da app assume.
+  id: z.coerce.string(),
+  conversation_id: z.coerce.string(),
   contact_name: z.string().min(1),
   title: z.string().min(1),
   message: z.string().min(1),

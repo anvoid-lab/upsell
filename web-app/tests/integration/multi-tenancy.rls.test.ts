@@ -111,8 +111,9 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
       console.warn("Skipping: no second business exists in this project to test against.");
       return;
     }
+    // id é bigint "generated always as identity" (migração 004) — nunca se
+    // especifica no insert, a BD gera-o sozinha.
     const { error } = await tenant.from("conversations").insert({
-      id: `vitest-intruder-${randomUUID()}`,
       contact: {},
       last_message: "cross-tenant write attempt",
       last_message_at: new Date().toISOString(),
@@ -126,25 +127,28 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
   });
 
   it("can insert and then read a row in its own business", async () => {
-    const id = `vitest-own-${randomUUID()}`;
+    const marker = `vitest-own-${randomUUID()}`;
 
-    const { error: insertErr } = await tenant.from("conversations").insert({
-      id,
-      contact: {},
-      last_message: "own-tenant write",
-      last_message_at: new Date().toISOString(),
-      status: "open",
-      unread: true,
-      ai_scheduled: false,
-      // business_id omitted deliberately — proves the column default
-      // (current_business_id()) stamps it correctly.
-    });
+    const { data: inserted, error: insertErr } = await tenant
+      .from("conversations")
+      .insert({
+        contact: {},
+        last_message: marker,
+        last_message_at: new Date().toISOString(),
+        status: "open",
+        unread: true,
+        ai_scheduled: false,
+        // business_id omitted deliberately — proves the column default
+        // (current_business_id()) stamps it correctly.
+      })
+      .select("id")
+      .single();
     expect(insertErr).toBeNull();
 
     const { data, error: readErr } = await tenant
       .from("conversations")
       .select("id, business_id")
-      .eq("id", id)
+      .eq("id", inserted!.id)
       .single();
     expect(readErr).toBeNull();
     expect(data?.business_id).toBe(ownBusinessId);
