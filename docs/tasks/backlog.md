@@ -7,6 +7,9 @@
 >
 > What does **not** exist yet is the product itself: there is no LLM, no messaging channel,
 > and no scheduler. Everything the user perceives as "AI" is static seed data.
+>
+> **Progress:** T-024, T-002, T-003 done. T-001 deferred by decision (see the task).
+> Next up: T-025, then the schema group (T-013, T-011, T-012).
 
 ---
 
@@ -45,11 +48,20 @@ not the whole product.
 | **P2** | Needed for a real multi-customer launch |
 | **P3** | Quality, polish, and hardening |
 
+## Status legend
+
+| Mark | Meaning |
+|------|---------|
+| ☐ | Not started |
+| ◐ | In progress |
+| ☑ | Done |
+| ⊘ | Deliberately deferred — see the note on the task |
+
 ---
 
 ## P0 — Security and correctness blockers
 
-### T-001 · Fix the magic-link authentication bypass
+### ⊘ T-001 · Fix the magic-link authentication bypass — DEFERRED
 **File:** `web-app/src/app/(auth)/login/actions.ts:14`
 
 `requestMagicLinkAction` never calls Supabase. It accepts any email string, calls
@@ -57,33 +69,59 @@ not the whole product.
 typing an email address. The OTP path (`verifyOtpAction`) is implemented correctly — the
 magic-link path was left as a stub.
 
+> **Deferred deliberately (2026-08-14).** The bypass is intentional for now: the Supabase
+> project requires a corporate email domain, which blocks development sign-in. To be
+> revisited once that constraint is resolved.
+>
+> **This must not reach any deployed environment.** Until it is fixed, treat every
+> environment running this code as publicly readable.
+
 **Done when:** the action calls `supabase.auth.signInWithOtp({ email })`, redirects to
 `/login/check-email`, and a session is only created after the callback or OTP verifies the
 identity. No code path creates a session from unverified input.
 
 ---
 
-### T-002 · Move `SESSION_SECRET` into the environment
-**File:** `web-app/src/lib/session.ts:6`
+### ☑ T-002 · Move `SESSION_SECRET` into the environment — DONE (2026-08-14)
+**File:** `web-app/src/lib/session.ts`
 
-The JWT signing key falls back to the literal
-`"vendai-dev-secret-change-in-production"` because `SESSION_SECRET` is absent from
+The JWT signing key fell back to the literal
+`"vendai-dev-secret-change-in-production"` because `SESSION_SECRET` was absent from
 `.env.local`. Any deploy inheriting this fallback lets an attacker forge session cookies.
 
-**Done when:** `SESSION_SECRET` is set locally and in every deploy target, and the module
-throws at startup if the variable is missing instead of falling back.
+**Delivered:**
+- Fallback removed. `getSecret()` throws if `SESSION_SECRET` is missing or under 32 chars.
+- The secret is read lazily and cached, so `next build` does not require it — only runtime does.
+- `getSession()` reads the secret *outside* its `try/catch`. The catch previously swallowed
+  everything and returned `null`, which would have turned a missing secret into a silent
+  redirect to `/login` instead of a visible failure.
+- A 32-byte secret is set in `.env.local`, and `web-app/.env.example` documents it.
+
+**Verified:** with `SESSION_SECRET=` the server returns HTTP 500 and logs the explicit error;
+with it set, sign-in creates a session and the Inbox loads.
+
+**Still open:** set `SESSION_SECRET` in every deploy target before shipping.
 
 ---
 
-### T-003 · Remove stale MongoDB configuration
-**Files:** `web-app/.env.local`, `docker-compose.yml`
+### ☑ T-003 · Remove stale MongoDB configuration — DONE (2026-08-14)
 
-`MONGODB_URI` and `MONGODB_DB` are still in `.env.local`, and the root `docker-compose.yml`
-still defines a MongoDB container. Both are dead since the Supabase migration and mislead
-anyone setting up the project.
+Dead since the Supabase migration, and actively misleading anyone setting up the project.
+The footprint was wider than first scoped:
 
-**Done when:** the Mongo variables are gone from `.env.local` (and from any `.env.example`),
-and the compose file is either deleted or reduced to services still in use.
+- `web-app/.env.local` — `MONGODB_URI` and `MONGODB_DB` removed
+- `docker-compose.yml` — deleted (it defined nothing but the Mongo container)
+- `.claude/launch.json` — dropped the "MongoDB (Docker)" configuration, which pointed at the
+  compose file that no longer exists
+- `AGENTS.md` — was a stale copy of the pre-migration `CLAUDE.md`, documenting the Mongo
+  driver, `mock-data.ts`, and a `BaseRepository` signature that no longer exists. Now synced
+  with `CLAUDE.md`.
+- `CLAUDE.md` — dropped the reference to the deleted compose file; env section now points at
+  `.env.example`
+
+**Note:** `DB_PASS` is still in `.env.local` and is referenced nowhere in the codebase. Left
+in place — it is probably the Supabase Postgres password kept for `psql` access. Remove it if
+that is not the case.
 
 ---
 
@@ -314,7 +352,22 @@ channel.
 `BaseRepository.paginate()` already exists and is unused. This breaks at a few thousand
 conversations.
 
-### T-024 · Commit the in-progress Inbox refactor
+### ☐ T-025 · Repair the lint script
+**File:** `web-app/package.json`
+
+`npm run lint` calls `next lint`, which was **removed in Next.js 16**. The command fails with
+`Invalid project directory provided, no such directory: .../web-app/lint`. No linting has run
+on this project since the upgrade, and `eslint-config-next` is still pinned to `15.3.3` while
+Next is on `16.2.9`.
+
+Worth doing early — it is a small change that restores a safety net for everything below.
+
+**Done when:** the script invokes the ESLint CLI directly against a flat config, the Next
+config package matches the installed Next major, and `npm run lint` passes on a clean tree.
+
+---
+
+### ☑ T-024 · Commit the in-progress Inbox refactor — DONE (2026-08-14)
 ~836 uncommitted lines across `inbox-chat-panel.tsx`, `inbox-conversation-list.tsx`,
 `inbox-details-panel.tsx`, and `inbox-view.tsx`, plus a `CLAUDE.md` rewrite. Land this before
 starting new work to avoid conflicts.
@@ -323,8 +376,8 @@ starting new work to avoid conflicts.
 
 ## Suggested sequence
 
-**Now — unblock and secure**
-T-024 (land the refactor) → T-001, T-002, T-003
+**Now — unblock and secure** ☑ *(T-001 deferred by decision)*
+~~T-024 (land the refactor) → T-002, T-003~~ → **T-025** (restore linting)
 
 **Next — schema before it gets expensive**
 T-013, T-011, T-012 — these get harder with every table and row added
