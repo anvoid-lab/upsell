@@ -12,7 +12,11 @@ interface InboxViewProps {
 }
 
 export function InboxView({ initialConversations }: InboxViewProps) {
-  const [selectedId, setSelectedId] = useState<string | null>('c1');
+  // Nenhuma conversa seleccionada por omissão — 'c1' era um placeholder que
+  // nunca correspondeu a dados reais. Com id agora bigint (migração 004),
+  // uma id inexistente deixa de falhar em silêncio (0 linhas devolvidas
+  // numa coluna text) e passa a rebentar a query logo no load da página.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [statusOverrides, setStatusOverrides] = useState<
     Record<string, ConversationStatus>
   >({});
