@@ -67,15 +67,18 @@ Supabase (PostgreSQL). To set up a fresh environment:
 1. Run `database/migrations/001_initial_schema.sql` in the Supabase SQL Editor.
 2. Run `npm run seed` to populate fixture data.
 
-The `docker-compose.yml` at the repo root references a legacy MongoDB container — it is no longer used.
-
 ### Required env vars (`web-app/.env.local`)
+
+Copy `web-app/.env.example` and fill it in.
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-SESSION_SECRET=
+SESSION_SECRET=            # min 32 chars — openssl rand -base64 32
 ```
+
+`SESSION_SECRET` has no default. `src/lib/session.ts` throws on first use if it is
+missing or shorter than 32 characters, rather than falling back to a predictable key.
 
 ### Soft deletes
 
