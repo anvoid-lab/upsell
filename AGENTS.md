@@ -115,6 +115,12 @@ order, then seed:
 Timestamps are `timestamptz`. Never store display-formatted strings in a time column —
 formatting belongs in `src/lib/format.ts`.
 
+If `SEED_DEV_EMAIL` / `SEED_DEV_PASSWORD` are set, the seed also provisions (or resets the
+password of) that user and links its profile to the seeded business — otherwise a fresh
+environment has fixture data but no account that can see it, since a normal signup creates
+its own separate, empty business via `handle_new_user`. Real credentials for a given
+environment belong in `docs/login-credentials.txt` (gitignored), never committed.
+
 ### Required env vars (`web-app/.env.local`)
 
 Copy `web-app/.env.example` and fill it in.

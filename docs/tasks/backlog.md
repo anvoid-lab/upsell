@@ -266,6 +266,15 @@ conversations, contacts, and settings — the app could not serve two customers.
 - `handle_new_user` trigger: each signup creates its own business and profile, so a new
   account is a new tenant.
 
+**Follow-up (2026-08-14):** that trigger created a real gap: `npm run seed` populates a
+business, but a fresh environment has no account linked to it — normal signup gives you your
+own separate empty business, not the seeded one. `database/seed.ts:ensureDevUser()` now
+optionally provisions a dev login (`SEED_DEV_EMAIL`/`SEED_DEV_PASSWORD` in `.env.local`) and
+re-links it to the seeded business on every run, deleting whatever orphan business the trigger
+created for it in the process. Used to reset the password on the pre-existing account in this
+project; credentials recorded in `docs/login-credentials.txt` (gitignored, never committed —
+verified with `git check-ignore`).
+
 ---
 
 ### ☑ T-012 · Enable Row Level Security — DONE (2026-08-14)

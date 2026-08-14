@@ -31,6 +31,9 @@ web-app/config/jarvis.yaml
 supabase/.temp/
 web-app/supabase/.temp/
 
+# Local credentials — never committed, see docs/login-credentials.txt
+docs/login-credentials.txt
+
 # Local agent and workspace state
 .jarvis/
 .opencode/

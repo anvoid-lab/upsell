@@ -302,11 +302,84 @@ async function resolveBusinessId(): Promise<string> {
   return created.id as string;
 }
 
+/**
+ * Provisiona (ou repõe a password de) um utilizador de desenvolvimento e
+ * garante que o seu profile aponta para o business semeado.
+ *
+ * Sem isto, um ambiente novo não tem forma de entrar nos dados que o seed
+ * acabou de inserir: um signup normal cria o SEU PRÓPRIO business vazio (via
+ * trigger handle_new_user), que nada tem a ver com as fixtures.
+ *
+ * Sem SEED_DEV_EMAIL/SEED_DEV_PASSWORD no ambiente, este passo salta-se —
+ * não há utilizador de desenvolvimento hard-coded no código.
+ */
+async function ensureDevUser(businessId: string): Promise<void> {
+  const email = process.env.SEED_DEV_EMAIL;
+  const password = process.env.SEED_DEV_PASSWORD;
+  if (!email || !password) {
+    console.log("  Skipped: SEED_DEV_EMAIL / SEED_DEV_PASSWORD não definidos.");
+    return;
+  }
+
+  const { data: existing, error: findErr } = await supabase
+    .from("profiles")
+    .select("id, business_id")
+    .eq("email", email)
+    .maybeSingle();
+  if (findErr) throw findErr;
+
+  let userId: string;
+  let previousBusinessId: string | undefined = existing?.business_id as string | undefined;
+
+  if (existing) {
+    userId = existing.id as string;
+    const { error } = await supabase.auth.admin.updateUserById(userId, {
+      password,
+      email_confirm: true,
+    });
+    if (error) throw error;
+    console.log(`  Password reset for: ${email}`);
+  } else {
+    const { data: created, error } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+    if (error) throw error;
+    userId = created.user!.id;
+    console.log(`  Created dev user: ${email}`);
+
+    // O trigger handle_new_user acabou de criar um business novo para este
+    // utilizador — é esse que fica órfão, não o de `existing` (que era null).
+    const { data: freshProfile } = await supabase
+      .from("profiles")
+      .select("business_id")
+      .eq("id", userId)
+      .maybeSingle();
+    previousBusinessId = freshProfile?.business_id as string | undefined;
+  }
+
+  // Limpa o business que o trigger atribuiu antes de o substituirmos pelo
+  // business semeado — caso contrário fica um business vazio para sempre.
+  if (previousBusinessId && previousBusinessId !== businessId) {
+    await supabase.from("businesses").delete().eq("id", previousBusinessId);
+  }
+
+  const { error: linkErr } = await supabase
+    .from("profiles")
+    .update({ business_id: businessId })
+    .eq("id", userId);
+  if (linkErr) throw linkErr;
+}
+
 async function seed() {
   console.log("Connecting to Supabase...");
 
   const businessId = await resolveBusinessId();
   const scoped = <T extends object>(row: T) => ({ ...row, business_id: businessId });
+
+  console.log("\nProvisioning dev login...");
+  await ensureDevUser(businessId);
 
   // Limpar tabelas por ordem (FKs)
   const tables = ["ai_suggestions", "follow_ups", "messages", "conversations", "channels", "ai_settings"];
