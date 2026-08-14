@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { formatDate, formatRelative } from '@/lib/format';
 import { SectionLabel } from '@/components/shared/section-label';
 import type { Conversation, FollowUp } from '@/types';
 
@@ -33,11 +34,19 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
   const [noteText, setNoteText] = useState('');
   const [noteSaved, setNoteSaved] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [followUps, setFollowUps] = useState<FollowUp[]>(
-    conversation?.follow_ups ?? [],
-  );
+  // Só os follow-ups criados nesta sessão, por conversa. Os que vêm da BD são
+  // lidos das props — copiá-los para estado inicial deixava-os presos ao
+  // primeiro render, quando `conversation` ainda é null, e nunca apareciam.
+  const [addedFollowUps, setAddedFollowUps] = useState<
+    Record<string, FollowUp[]>
+  >({});
 
-  const displayFollowUps = conversation ? followUps : [];
+  const displayFollowUps = conversation
+    ? [
+        ...(addedFollowUps[conversation.id] ?? []),
+        ...(conversation.follow_ups ?? []),
+      ]
+    : [];
 
   const handleSaveNote = () => {
     if (!noteText.trim()) return;
@@ -86,7 +95,12 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                 'Channel',
                 <span className="capitalize">{contact.platform}</span>,
               ],
-              ['First contact', contact.first_contact],
+              [
+                'First contact',
+                <span suppressHydrationWarning>
+                  {formatDate(contact.first_contact)}
+                </span>,
+              ],
               ['Status', <StatusBadge status={contact.status} />],
             ] as [string, React.ReactNode][]
           ).map(([k, v], i) => (
@@ -183,8 +197,15 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                   <p className="text-[11px] text-zinc-400 leading-relaxed">
                     "{fu.message}"
                   </p>
-                  <p className="text-[11px] text-zinc-300 mt-1">
-                    {fu.scheduled_for ?? fu.sent_at}
+                  <p
+                    className="text-[11px] text-zinc-300 mt-1"
+                    suppressHydrationWarning
+                  >
+                    {fu.sent_at
+                      ? `sent ${formatRelative(fu.sent_at)}`
+                      : fu.scheduled_for
+                        ? formatRelative(fu.scheduled_for)
+                        : null}
                   </p>
                 </div>
               ))}
@@ -263,7 +284,10 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
         open={scheduleOpen}
         onClose={() => setScheduleOpen(false)}
         onSave={(fu) => {
-          setFollowUps((prev) => [fu, ...prev]);
+          setAddedFollowUps((prev) => ({
+            ...prev,
+            [fu.conversation_id]: [fu, ...(prev[fu.conversation_id] ?? [])],
+          }));
           setScheduleOpen(false);
         }}
         conversationId={conversation.id}
@@ -295,7 +319,7 @@ const ScheduleDialog: FC<{
       message: message.trim(),
       status: 'scheduled',
       type: 'upsell',
-      scheduled_for: `In ${hours}h`,
+      scheduled_for: new Date(Date.now() + Number(hours) * 60 * 60 * 1000),
     };
     onSave(fu);
     setMessage('');
