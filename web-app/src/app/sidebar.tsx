@@ -3,15 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FC, useState } from "react";
-import { Inbox, BarChart2, Settings, PanelLeftOpen, PanelLeftClose, type LucideIcon } from "lucide-react";
+import { Inbox, BarChart2, Settings, PanelLeftOpen, PanelLeftClose, LogOut, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { signOutAction } from "@/app/(auth)/login/actions";
 
 interface NavItem { label: string; icon: LucideIcon; href: string; count?: number; }
 
-interface AppSidebarProps { unreadCount: number; }
+interface AppSidebarProps {
+  unreadCount: number;
+  email: string;
+  businessName: string;
+}
 
-export const AppSidebar: FC<AppSidebarProps> = ({ unreadCount }) => {
+export const AppSidebar: FC<AppSidebarProps> = ({ unreadCount, email, businessName }) => {
+  const initials = businessName.slice(0, 2).toUpperCase();
   const NAV_ITEMS: NavItem[] = [
     { label: "All messages", icon: Inbox,    href: "/inbox", count: unreadCount },
     { label: "Analytics",    icon: BarChart2, href: "/analytics" },
@@ -111,19 +117,30 @@ export const AppSidebar: FC<AppSidebarProps> = ({ unreadCount }) => {
         <div className="border-t border-zinc-100 p-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className={cn("flex items-center gap-2 px-1 py-1 rounded-lg cursor-default overflow-hidden", collapsed ? "justify-center" : "")}>
+              <div className={cn("flex items-center gap-2 px-1 py-1 rounded-lg overflow-hidden", collapsed ? "justify-center" : "")}>
                 <div className="w-7 h-7 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-semibold text-zinc-600 flex-shrink-0">
-                  JD
+                  {initials}
                 </div>
                 {!collapsed && (
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-zinc-900 truncate leading-none">João Dias</p>
-                    <p className="text-xs text-zinc-400 mt-0.5">Admin</p>
-                  </div>
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-zinc-900 truncate leading-none">{businessName}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5 truncate">{email}</p>
+                    </div>
+                    <form action={signOutAction}>
+                      <button
+                        type="submit"
+                        title="Sair"
+                        className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                      </button>
+                    </form>
+                  </>
                 )}
               </div>
             </TooltipTrigger>
-            {collapsed && <TooltipContent side="right">João Dias · Admin</TooltipContent>}
+            {collapsed && <TooltipContent side="right">{email}</TooltipContent>}
           </Tooltip>
         </div>
       </aside>
