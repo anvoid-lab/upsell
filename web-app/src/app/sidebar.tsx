@@ -32,7 +32,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({ unreadCount }) => {
             collapsed ? "w-0 opacity-0 pointer-events-none" : "w-auto opacity-100"
           )}>
             <div className="w-5 h-5 bg-indigo-600 rounded-md flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-[10px] font-bold">V</span>
+              <span className="text-white text-xs font-bold">V</span>
             </div>
             <span className="text-sm font-semibold text-zinc-900 whitespace-nowrap">VendAI</span>
           </div>
@@ -72,7 +72,7 @@ export const AppSidebar: FC<AppSidebarProps> = ({ unreadCount }) => {
                       </span>
                       {!collapsed && item.count !== undefined && (
                         <span className={cn(
-                          "text-[10px] px-1.5 py-0.5 rounded-full font-semibold tabular-nums",
+                          "text-xs px-1.5 py-0.5 rounded-full font-semibold tabular-nums",
                           isActive ? "bg-zinc-200 text-zinc-700" : "bg-zinc-100 text-zinc-500"
                         )}>
                           {item.count}
@@ -112,13 +112,13 @@ export const AppSidebar: FC<AppSidebarProps> = ({ unreadCount }) => {
           <Tooltip>
             <TooltipTrigger asChild>
               <div className={cn("flex items-center gap-2 px-1 py-1 rounded-lg cursor-default overflow-hidden", collapsed ? "justify-center" : "")}>
-                <div className="w-7 h-7 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-semibold text-zinc-600 flex-shrink-0">
+                <div className="w-7 h-7 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-semibold text-zinc-600 flex-shrink-0">
                   JD
                 </div>
                 {!collapsed && (
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-zinc-900 truncate leading-none">João Dias</p>
-                    <p className="text-[10px] text-zinc-400 mt-0.5">Admin</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">Admin</p>
                   </div>
                 )}
               </div>
