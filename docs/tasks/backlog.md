@@ -389,9 +389,30 @@ attributable to AI-assisted messages versus unassisted ones.
 
 ## P3 — Quality and hardening
 
-### T-018 · Test suite
-No test runner is configured. Priority order: contract schemas, `BaseRepository` (especially
-soft-delete filtering), the services, then the scheduler's concurrency behaviour.
+### ◐ T-018 · Test suite
+
+**Delivered (2026-08-14):** Vitest configured (`web-app/vitest.config.mts`), `*.test.ts`
+co-located with the code they test. 22 unit tests: `format.ts`, `AppException`,
+`validateContract`, `MessageContract`'s date coercion (regression-guards the exact string
+migration 002 made invalid — `"23:24"`), and `current-user.service`'s business-name
+resolution (both shapes Supabase can return a to-one join in).
+
+Also added `tests/integration/`, excluded from `npm run test` and run separately via
+`npm run test:integration` (needs `.env.local`). Its one suite so far automates the RLS
+verification done manually during T-012 — against the real `Avoid Upsell` project, not a
+mock, because RLS can't be meaningfully verified against one:
+- a fresh tenant starts with zero rows in every domain table
+- it cannot read another business's row by id
+- it cannot insert into another business (`WITH CHECK` rejects it)
+- it can insert and read within its own business, with `business_id` stamped by the column
+  default rather than application code
+
+It creates and deletes its own throwaway tenant per run; verified no residue is left behind.
+
+**Still open:** `BaseRepository` itself is untested (would need a fake PostgREST query
+builder, or run against a Supabase local/test instance — the live-project pattern above
+doesn't fit something exercised on every commit). No tests yet for the server actions or the
+scheduler once T-009 exists. Coverage reporting isn't configured.
 
 ### T-019 · Error handling and user-facing failures
 `AppException.wrap()` gives good server-side context, but there is no error boundary and no

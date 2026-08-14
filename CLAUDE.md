@@ -7,13 +7,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 All commands run from `web-app/`:
 
 ```bash
-npm run dev        # Start dev server
-npm run build      # Production build
-npm run lint       # ESLint
-npm run seed       # Seed Supabase with fixture data (requires .env.local)
+npm run dev              # Start dev server
+npm run build            # Production build
+npm run lint             # ESLint
+npm run seed             # Seed Supabase with fixture data (requires .env.local)
+npm run test             # Unit tests (Vitest) — no network, no credentials needed
+npm run test:watch       # Unit tests in watch mode
+npm run test:integration # Hits the live Supabase project — see below
 ```
 
-No test suite is configured yet.
+### Tests
+
+Vitest. `*.test.ts` files live next to the code they test (`src/lib/format.test.ts`, not a
+separate `__tests__/` tree).
+
+`npm run test` never touches the network — mock `@db/client` for anything that reaches
+Supabase. `tests/integration/` is excluded from that run; it's for tests that must exercise
+the real database (chiefly RLS policies, which cannot be verified against a mock). Those need
+`.env.local` and run via `npm run test:integration`. Each one must create its own throwaway
+data and delete it in `afterAll`, regardless of whether the test passed — never assert against
+or mutate the seeded fixtures.
+
+The `"server-only"` import some services use only exists as a Next.js bundler alias; it doesn't
+resolve under plain Node. `vitest.config.mts` aliases it to `test/stubs/server-only.ts` — no
+per-file workaround needed.
 
 ## Architecture
 
