@@ -8,8 +8,8 @@
 > What does **not** exist yet is the product itself: there is no LLM, no messaging channel,
 > and no scheduler. Everything the user perceives as "AI" is static seed data.
 >
-> **Progress:** T-024, T-001, T-003, T-011, T-012, T-013 done (T-002 superseded by T-001);
-> T-016 partly done; T-025 on hold. Every P0 is now closed.
+> **Progress:** T-024, T-001, T-003, T-011, T-012, T-013, T-026 done (T-002 superseded by
+> T-001); T-016 partly done; T-025 on hold. Every P0 is now closed.
 > Next up: **T-004 → T-005** — the AI layer, i.e. the product itself.
 
 ---
@@ -135,6 +135,71 @@ The footprint was wider than first scoped:
 **Note:** `DB_PASS` is still in `.env.local` and is referenced nowhere in the codebase. Left
 in place — it is probably the Supabase Postgres password kept for `psql` access. Remove it if
 that is not the case.
+
+---
+
+### ☑ T-026 · Fix "sending a message/note always fails", decouple ids from channel ids — DONE (2026-08-14)
+
+**Reported:** creating a note threw `AppException: Unknown error` with no useful detail.
+
+**Root cause:** `messages.id` and `follow_ups.id` were `text primary key` with **no default** —
+whatever inserted a row had to invent an id. `InboxChatPanelService.sendMessage()` and
+`scheduleFollowUp()` never did, so every single send/note/schedule from the Inbox UI failed
+with a `NOT NULL` violation. This was a pre-existing bug, not introduced this session — the
+Notes/Reply composer had apparently never been exercised end-to-end before.
+
+**A second bug hid the first one:** `AppException.wrap()` treated anything that wasn't
+`instanceof Error` as an unhelpful `"Unknown error"`. Supabase/PostgREST errors are plain
+objects, not `Error` instances, so every database error in the app — not just this one — was
+being flattened to that generic message. Fixed generally: `wrap()` now detects an object with
+a string `.message` (`code: "DATABASE_ERROR"`) and surfaces it, covered by a new test in
+`app.exception.test.ts`.
+
+**Fixing it properly meant revisiting the id strategy, not just adding `crypto.randomUUID()`
+at the two call sites.** A unified inbox will eventually receive messages/conversations that
+already carry a platform-issued id (WhatsApp `wamid`, Instagram/Facebook message ids) — an
+app-generated id doesn't fit that shape, and a bare autoincrement column would have no room
+for it either. **Migration 004** (`004_autoincrement_ids_and_channel_ids.sql`, applied to the
+`Avoid Upsell` project) resolves this by decoupling the two concerns:
+
+- `conversations.id`, `messages.id`, `follow_ups.id` → `bigint generated always as identity`.
+  The app never sets these; the database always does.
+- `conversations.channel_conversation_id`, `messages.channel_message_id` → new nullable `text`
+  columns, unique, for the external platform's own id once T-010 exists. Not populated or
+  wired into the UI yet.
+- FK columns (`messages.conversation_id`, `follow_ups.conversation_id`,
+  `ai_suggestions.conversation_id`) changed to `bigint` to match.
+- Existing seed data was truncated as part of the migration (disposable fixtures) and
+  regenerated afterward.
+
+**Follow-on changes:**
+- Contracts (`conversation`, `message`, `follow-up`, `ai-suggestion`) coerce `id`/`conversation_id`
+  to string (`z.coerce.string()`) — PostgREST may return a bigint as a JS number or string
+  depending on magnitude, and the rest of the app treats ids as opaque strings throughout
+  (`Record<string, …>` keys, comparisons). Coercion normalizes either shape.
+- `database/seed.ts` rewritten: conversations are inserted one at a time (not in a single
+  bulk insert) so each iteration's database-generated id can be captured immediately and used
+  to wire up that conversation's messages, follow-ups, and AI suggestion — bulk insert +
+  `RETURNING` order isn't a safe way to recover per-row correspondence.
+- `tests/integration/multi-tenancy.rls.test.ts` updated: two tests previously set an explicit
+  `id` on a `conversations` insert, which now fails outright (`generated always as identity`
+  rejects a caller-supplied value). Fixed to read the database-generated id back instead.
+
+**A third, more serious bug surfaced once the above was fixed and actually exercised:**
+`InboxView` (`inbox-view.tsx`) defaulted `selectedId` to the **hardcoded, never-valid**
+literal `'c1'` — leftover placeholder that never matched real seeded data (real ids were
+always `conv-1`-style, and are now integers). Querying a `text` column for a nonexistent id
+silently returned zero rows, so this was invisible before. With `id` now `bigint`, the same
+query throws `invalid input syntax for type bigint: "c1"` — meaning **every single load of the
+Inbox page** started failing three ways in parallel (conversation fetch, AI suggestion fetch,
+message fetch) before this fix. Changed the default to `null`, which the UI already handles
+correctly (renders the existing "Select a conversation" empty state).
+
+**Verified end-to-end:** reproduced the exact reported flow (Reply → Note toggle → Add note)
+in-browser against the live database — the note now appears in the thread and lands correctly
+in `messages` with the right `conversation_id`. Confirmed via server logs that the `"c1"`
+error no longer occurs after the `inbox-view.tsx` fix. Full re-verification after: `tsc`,
+23 unit tests, 4 live-database RLS integration tests, `npm run build`.
 
 ---
 

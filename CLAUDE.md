@@ -109,10 +109,18 @@ order, then seed:
 1. `database/migrations/001_initial_schema.sql`
 2. `database/migrations/002_timestamps_to_timestamptz.sql`
 3. `database/migrations/003_multi_tenancy_and_rls.sql`
-4. `npm run seed`
+4. `database/migrations/004_autoincrement_ids_and_channel_ids.sql`
+5. `npm run seed`
 
 Timestamps are `timestamptz`. Never store display-formatted strings in a time column —
 formatting belongs in `src/lib/format.ts`.
+
+`conversations`, `messages`, and `follow_ups` use a `bigint generated always as identity`
+primary key — never set `id` on insert, the database always generates it.
+`conversations.channel_conversation_id` and `messages.channel_message_id` are separate,
+nullable columns reserved for the external platform's own id (WhatsApp/Instagram/Facebook)
+once real channel integration exists — they intentionally decouple our internal id from
+theirs.
 
 If `SEED_DEV_EMAIL` / `SEED_DEV_PASSWORD` are set, the seed also provisions (or resets the
 password of) that user and links its profile to the seeded business — otherwise a fresh
