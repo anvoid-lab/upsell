@@ -27,6 +27,10 @@ pnpm-debug.log*
 config/jarvis.yaml
 web-app/config/jarvis.yaml
 
+# Supabase CLI local state (project link, cached versions)
+supabase/.temp/
+web-app/supabase/.temp/
+
 # Local agent and workspace state
 .jarvis/
 .opencode/

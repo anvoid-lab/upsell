@@ -8,8 +8,10 @@
 > What does **not** exist yet is the product itself: there is no LLM, no messaging channel,
 > and no scheduler. Everything the user perceives as "AI" is static seed data.
 >
-> **Progress:** T-024, T-002, T-003 done. T-001 deferred by decision (see the task).
-> Next up: T-025, then the schema group (T-013, T-011, T-012).
+> **Progress:** T-024, T-002, T-003, T-013 done; T-016 partly done. T-001 deferred by
+> decision, T-025 on hold (see each task). Next up: T-011 and T-012 — but note that T-012
+> (RLS) cannot be meaningfully enforced while T-001 is deferred, because the primary login
+> path never establishes a real Supabase auth session, so `auth.uid()` is NULL.
 
 ---
 
@@ -260,17 +262,41 @@ business, and a test proves cross-tenant reads are rejected at the database leve
 
 ---
 
-### T-013 · Migrate text timestamps to `timestamptz`
+### ☑ T-013 · Migrate text timestamps to `timestamptz` — DONE (2026-08-14)
 
 `last_message_at`, `messages.timestamp`, `follow_ups.scheduled_for`, `follow_ups.sent_at`,
-and `channels.connected_at` are all `text` columns holding display-formatted strings
-(`"14:32"`, `"20 Jun 2026"`). They cannot be sorted or range-queried.
+and `channels.connected_at` were all `text` columns holding display-formatted strings
+(`"14:32"`, `"20 Jun 2026"`). They could not be sorted or range-queried.
 
-This blocks the scheduler (T-009), silence detection (T-008), and real analytics (T-016).
-Formatting belongs in the view layer, not the database.
+**Delivered:**
+- `database/migrations/002_timestamps_to_timestamptz.sql`, applied to the `Avoid Upsell`
+  cloud project. It uses a tolerant cast helper: values like `"23:24"` carry no date and are
+  unrecoverable, so they fall back to the row's `created_at` rather than failing the migration.
+  `NOT NULL` is preserved throughout.
+- Three indexes the new types make possible: `follow_ups_due_idx` (partial, for the T-009
+  scheduler sweep), `conversations_last_message_at_idx`, `messages_conversation_timestamp_idx`.
+- Contracts coerce to `Date` (`z.coerce.date()`); `Conversation`, `Message`, `FollowUp`,
+  `ChannelConnection` and `Contact` now carry real instants.
+- `BaseRepository` gained an `orderBy` option — without it the new indexes were unused and
+  message order still depended on insertion order. Conversations sort by `last_message_at desc`,
+  messages by `timestamp asc`.
+- All display formatting moved to `src/lib/format.ts` (`formatTime`, `formatDate`,
+  `formatListTimestamp`, `formatRelative`), consumed by the view layer.
+- `sendMessage()` now also bumps the conversation's `last_message`/`last_message_at`, so a
+  reply moves the conversation to the top of the list.
+- Seed emits real instants.
 
-**Done when:** the columns are `timestamptz`, existing rows are migrated, contracts and the
-seed are updated, and all display formatting happens client-side.
+**Verified:** conversation list ordered by real activity; message day separators
+(YESTERDAY/TODAY) work for the first time; scheduled follow-up renders "in 2 hours";
+`scheduled_for <= now()` — the exact query T-009 needs — returns correctly against the DB.
+
+**Note on hydration:** these formatters are timezone-dependent, so server and client can render
+different strings for the same instant. Every element using them carries
+`suppressHydrationWarning`. Documented in `src/lib/format.ts`.
+
+**Not migrated:** `contact.first_contact` lives inside the `conversations.contact` JSONB and
+stays an ISO string — JSONB has no temporal type. It is coerced to `Date` at the contract
+boundary.
 
 ---
 
@@ -299,16 +325,21 @@ drives silence detection.
 
 ---
 
-### T-016 · Real analytics
-**File:** `web-app/src/app/(app)/analytics/analytics-overview.service.ts:63`
+### ◐ T-016 · Real analytics
+**File:** `web-app/src/app/(app)/analytics/analytics-overview.service.ts`
 
-Two problems:
-- `chart_data` fabricates the 7-day series arithmetically from current totals, because no
-  historical timestamps exist. The chart is fiction.
-- Every KPI delta is hard-coded to `"+0"` with `delta_positive: true`.
+- ☑ **Follow-up counts were always zero.** The service read `c.follow_ups` off each
+  conversation, but `follow_ups` is a separate table and never appears in `select *` on
+  `conversations` — so `allFollowUps` was permanently empty. Fixed 2026-08-14 by querying the
+  `follow_ups` repository directly. (An earlier commit had added a `?? []` guard, which stopped
+  the crash but locked the KPI at 0 — that guard is now gone.)
+- ☐ `chart_data` still fabricates the 7-day series arithmetically from current totals. Now
+  unblocked by T-013: real timestamps exist, so it can aggregate for real.
+- ☐ Every KPI delta is still hard-coded to `"+0"` with `delta_positive: true`.
+- ☐ The "Top products" table is entirely hard-coded fixture markup in the view.
 
-**Done when (depends on T-013):** the chart aggregates over real timestamps and deltas are
-computed against the prior period.
+**Done when:** the chart aggregates over real timestamps, deltas compare against the prior
+period, and no panel renders invented numbers.
 
 ---
 
@@ -389,7 +420,13 @@ starting new work to avoid conflicts.
 ~~T-024 (land the refactor) → T-002, T-003~~ → **T-025** (restore linting)
 
 **Next — schema before it gets expensive**
-T-013, T-011, T-012 — these get harder with every table and row added
+~~T-013~~ ☑ → T-011, T-012 — these get harder with every table and row added.
+
+> ⚠️ **T-012 is blocked by T-001.** RLS policies key off `auth.uid()`, but the deferred
+> magic-link bypass means the primary login path never creates a Supabase auth session — only
+> the custom `vendai_session` cookie. Enabling RLS today would either block every query
+> (`auth.uid()` NULL) or require policies so permissive they enforce nothing. T-011's schema
+> work (adding `business_id`, backfilling, indexing) can proceed independently.
 
 **Then — prove the value proposition**
 T-004 → T-005 → T-006 → T-007 → T-015
