@@ -352,7 +352,7 @@ channel.
 `BaseRepository.paginate()` already exists and is unused. This breaks at a few thousand
 conversations.
 
-### ☐ T-025 · Repair the lint script
+### ⊘ T-025 · Repair the lint script — ON HOLD (2026-08-14)
 **File:** `web-app/package.json`
 
 `npm run lint` calls `next lint`, which was **removed in Next.js 16**. The command fails with
@@ -360,10 +360,19 @@ conversations.
 on this project since the upgrade, and `eslint-config-next` is still pinned to `15.3.3` while
 Next is on `16.2.9`.
 
-Worth doing early — it is a small change that restores a safety net for everything below.
+> **Attempted and reverted (2026-08-14).** Upgraded `eslint-config-next` to `16.2.9` and
+> switched to a flat `eslint.config.mjs` calling `eslint .` directly — it worked, but surfaced
+> 13 real errors across the recent Inbox refactor (mostly `react-hooks/set-state-in-effect` —
+> `setState` called synchronously inside `useEffect` in `inbox-chat-panel.tsx`,
+> `inbox-chat-panel.hook.ts`, `inbox-conversation-list.tsx` — plus a couple of unescaped
+> quotes and a missing `key` prop). Fixing those was judged out of scope for a lint-tooling
+> task, so the decision was to keep using `next lint` for now and revisit later. All changes
+> (`eslint.config.mjs`, the `package.json` script, the dependency bump) were rolled back;
+> `eslint-config-next` is back on `15.3.3` and `npm run lint` still fails as described above.
 
 **Done when:** the script invokes the ESLint CLI directly against a flat config, the Next
-config package matches the installed Next major, and `npm run lint` passes on a clean tree.
+config package matches the installed Next major, and `npm run lint` passes on a clean tree —
+which will also require fixing the `set-state-in-effect` findings above.
 
 ---
 
