@@ -30,7 +30,9 @@ class InboxConversationListService {
 
   async fetchConversations(): Promise<Conversation[]> {
     const [docs, allFollowUps] = await Promise.all([
-      this.conversations.findAll<ConversationDoc>(),
+      this.conversations.findAll<ConversationDoc>({
+        orderBy: { column: "last_message_at", ascending: false },
+      }),
       this.followUps.findAll<FollowUp>(),
     ]);
 
@@ -50,7 +52,10 @@ class InboxConversationListService {
   async fetchConversationById(id: string): Promise<Conversation | null> {
     const [doc, msgs, followUps] = await Promise.all([
       this.conversations.findById<ConversationDoc>(id),
-      this.messages.findAll<Message>({ filters: { conversation_id: id } as Partial<Message> }),
+      this.messages.findAll<Message>({
+        filters: { conversation_id: id } as Partial<Message>,
+        orderBy: { column: "timestamp", ascending: true },
+      }),
       this.followUps.findAll<FollowUp>({ filters: { conversation_id: id } as Partial<FollowUp> }),
     ]);
     if (!doc) return null;

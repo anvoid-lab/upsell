@@ -6,8 +6,14 @@ export type PaginateResult<T> = {
   total: number;
 };
 
+export type OrderBy<T> = {
+  column: keyof T & string;
+  ascending?: boolean;
+};
+
 export type QueryOptions<T> = {
   filters?: Partial<T>;
+  orderBy?: OrderBy<T>;
   page?: number;
   limit?: number;
   softDelete?: boolean;
@@ -32,6 +38,7 @@ export class BaseRepository<Entity extends object> {
     query: any,
     filters?: Partial<Entity>,
     softDelete = true,
+    orderBy?: OrderBy<Entity>,
   ) {
     if (softDelete) {
       query = query.is("deleted_at", null);
@@ -42,6 +49,9 @@ export class BaseRepository<Entity extends object> {
           query = query.eq(key, value);
         }
       }
+    }
+    if (orderBy) {
+      query = query.order(orderBy.column, { ascending: orderBy.ascending ?? true });
     }
     return query;
   }
@@ -71,6 +81,7 @@ export class BaseRepository<Entity extends object> {
         supabase.from(this.table).select("*"),
         options?.filters,
         options?.softDelete !== false,
+        options?.orderBy,
       );
       const { data, error } = await query;
       if (error) throw error;
@@ -166,6 +177,7 @@ export class BaseRepository<Entity extends object> {
         supabase.from(this.table).select("*", { count: "exact" }),
         options?.filters,
         options?.softDelete !== false,
+        options?.orderBy,
       );
       const { data, count, error } = await query.range(from, to);
       if (error) throw error;

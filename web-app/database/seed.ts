@@ -25,15 +25,9 @@ function id(prefix: string, n: number | string) {
   return `${prefix}-${n}`;
 }
 
-function ts(minutesAgo: number): string {
-  return new Date(Date.now() - minutesAgo * 60 * 1000).toISOString();
-}
-
-function timeLabel(minutesAgo: number): string {
-  return new Date(Date.now() - minutesAgo * 60 * 1000).toLocaleTimeString("pt-PT", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+/** Instante N minutos atrás (negativo = futuro). Serializa para ISO no insert. */
+function ts(minutesAgo: number): Date {
+  return new Date(Date.now() - minutesAgo * 60 * 1000);
 }
 
 // ─── Conversations ────────────────────────────────────────────
@@ -53,7 +47,7 @@ const conversations: ConversationDoc[] = [
       status: "interested",
     },
     last_message: "Tem capulanas de Angola com padrão tradicional?",
-    last_message_at: timeLabel(12),
+    last_message_at: ts(12),
     status: "open",
     unread: true,
     ai_scheduled: true,
@@ -79,7 +73,7 @@ const conversations: ConversationDoc[] = [
       status: "interested",
     },
     last_message: "Qual é o preço do Samsung Galaxy A55?",
-    last_message_at: timeLabel(35),
+    last_message_at: ts(35),
     status: "open",
     unread: true,
     ai_scheduled: false,
@@ -116,7 +110,7 @@ const conversations: ConversationDoc[] = [
       status: "new",
     },
     last_message: "Têm vestidos de festa disponíveis para o fim de semana?",
-    last_message_at: timeLabel(90),
+    last_message_at: ts(90),
     status: "pending",
     unread: false,
     ai_scheduled: true,
@@ -142,7 +136,7 @@ const conversations: ConversationDoc[] = [
       status: "converted",
     },
     last_message: "Obrigado! Os sapatos chegaram em perfeito estado.",
-    last_message_at: timeLabel(60 * 3),
+    last_message_at: ts(60 * 3),
     status: "resolved",
     unread: false,
     ai_scheduled: false,
@@ -179,7 +173,7 @@ const conversations: ConversationDoc[] = [
       status: "interested",
     },
     last_message: "A bolsa que vi no Instagram ainda está disponível?",
-    last_message_at: timeLabel(20),
+    last_message_at: ts(20),
     status: "open",
     unread: true,
     ai_scheduled: false,
@@ -205,7 +199,7 @@ const conversations: ConversationDoc[] = [
       status: "new",
     },
     last_message: "Olá, queria saber mais sobre os telemóveis disponíveis.",
-    last_message_at: timeLabel(5),
+    last_message_at: ts(5),
     status: "open",
     unread: true,
     ai_scheduled: true,
@@ -216,33 +210,33 @@ const conversations: ConversationDoc[] = [
 // ─── Messages ─────────────────────────────────────────────────
 
 const messages: Message[] = [
-  { id: id("msg", "1-1"), conversation_id: id("conv", 1), content: "Bom dia! Vi que vendem capulanas. Têm com padrão tradicional angolano?", direction: "in",  timestamp: timeLabel(70),  read: true },
-  { id: id("msg", "1-2"), conversation_id: id("conv", 1), content: "Bom dia, Esperança! Sim, temos vários padrões tradicionais. Envio fotos já!", direction: "out", timestamp: timeLabel(65), read: true },
-  { id: id("msg", "1-3"), conversation_id: id("conv", 1), content: "Tem capulanas de Angola com padrão tradicional?", direction: "in", timestamp: timeLabel(12), read: false },
-  { id: id("msg", "2-1"), conversation_id: id("conv", 2), content: "Boa tarde! Tenho interesse no Samsung Galaxy A55.", direction: "in", timestamp: timeLabel(180), read: true },
-  { id: id("msg", "2-2"), conversation_id: id("conv", 2), content: "Boa tarde, Carlos! O A55 está disponível. Temos em preto e azul.", direction: "out", timestamp: timeLabel(170), read: true },
-  { id: id("msg", "2-3"), conversation_id: id("conv", 2), content: "Inclui garantia?", direction: "in", timestamp: timeLabel(100), read: true },
-  { id: id("msg", "2-4"), conversation_id: id("conv", 2), content: "Sim! 12 meses de garantia e protector de ecrã incluído.", direction: "out", timestamp: timeLabel(90), read: true },
-  { id: id("msg", "2-5"), conversation_id: id("conv", 2), content: "Qual é o preço do Samsung Galaxy A55?", direction: "in", timestamp: timeLabel(35), read: false },
-  { id: id("msg", "3-1"), conversation_id: id("conv", 3), content: "Olá! Vi os vossos vestidos no Facebook. São lindos!", direction: "in", timestamp: timeLabel(200), read: true },
-  { id: id("msg", "3-2"), conversation_id: id("conv", 3), content: "Muito obrigada, Benedita! Temos novas chegadas esta semana.", direction: "out", timestamp: timeLabel(190), read: true },
-  { id: id("msg", "3-3"), conversation_id: id("conv", 3), content: "Têm vestidos de festa disponíveis para o fim de semana?", direction: "in", timestamp: timeLabel(90), read: true },
-  { id: id("msg", "4-1"), conversation_id: id("conv", 4), content: "Boa tarde, queria encomendar os sapatos de couro tamanho 43.", direction: "in", timestamp: timeLabel(60 * 24 * 3), read: true },
-  { id: id("msg", "4-2"), conversation_id: id("conv", 4), content: "Perfeito, Filipe! Reservado. Entrega em 2 dias úteis.", direction: "out", timestamp: timeLabel(60 * 24 * 3 - 10), read: true },
-  { id: id("msg", "4-3"), conversation_id: id("conv", 4), content: "Pago via transferência ou M-Pesa?", direction: "in", timestamp: timeLabel(60 * 24 * 2), read: true },
-  { id: id("msg", "4-4"), conversation_id: id("conv", 4), content: "Ambas! M-Pesa: 923 000 000 ou transferência para o IBAN que enviamos por email.", direction: "out", timestamp: timeLabel(60 * 24 * 2 - 5), read: true },
-  { id: id("msg", "4-5"), conversation_id: id("conv", 4), content: "Obrigado! Os sapatos chegaram em perfeito estado.", direction: "in", timestamp: timeLabel(60 * 3), read: true },
-  { id: id("msg", "5-1"), conversation_id: id("conv", 5), content: "Olá! Adoro a bolsa que publicaram hoje no Instagram.", direction: "in", timestamp: timeLabel(45), read: true },
-  { id: id("msg", "5-2"), conversation_id: id("conv", 5), content: "Boa tarde, Lúcia! É um dos nossos bestsellers. Temos em castanho e preto.", direction: "out", timestamp: timeLabel(40), read: true },
-  { id: id("msg", "5-3"), conversation_id: id("conv", 5), content: "A bolsa que vi no Instagram ainda está disponível?", direction: "in", timestamp: timeLabel(20), read: false },
-  { id: id("msg", "6-1"), conversation_id: id("conv", 6), content: "Olá, queria saber mais sobre os telemóveis disponíveis.", direction: "in", timestamp: timeLabel(5), read: false },
+  { id: id("msg", "1-1"), conversation_id: id("conv", 1), content: "Bom dia! Vi que vendem capulanas. Têm com padrão tradicional angolano?", direction: "in",  timestamp: ts(70),  read: true },
+  { id: id("msg", "1-2"), conversation_id: id("conv", 1), content: "Bom dia, Esperança! Sim, temos vários padrões tradicionais. Envio fotos já!", direction: "out", timestamp: ts(65), read: true },
+  { id: id("msg", "1-3"), conversation_id: id("conv", 1), content: "Tem capulanas de Angola com padrão tradicional?", direction: "in", timestamp: ts(12), read: false },
+  { id: id("msg", "2-1"), conversation_id: id("conv", 2), content: "Boa tarde! Tenho interesse no Samsung Galaxy A55.", direction: "in", timestamp: ts(180), read: true },
+  { id: id("msg", "2-2"), conversation_id: id("conv", 2), content: "Boa tarde, Carlos! O A55 está disponível. Temos em preto e azul.", direction: "out", timestamp: ts(170), read: true },
+  { id: id("msg", "2-3"), conversation_id: id("conv", 2), content: "Inclui garantia?", direction: "in", timestamp: ts(100), read: true },
+  { id: id("msg", "2-4"), conversation_id: id("conv", 2), content: "Sim! 12 meses de garantia e protector de ecrã incluído.", direction: "out", timestamp: ts(90), read: true },
+  { id: id("msg", "2-5"), conversation_id: id("conv", 2), content: "Qual é o preço do Samsung Galaxy A55?", direction: "in", timestamp: ts(35), read: false },
+  { id: id("msg", "3-1"), conversation_id: id("conv", 3), content: "Olá! Vi os vossos vestidos no Facebook. São lindos!", direction: "in", timestamp: ts(200), read: true },
+  { id: id("msg", "3-2"), conversation_id: id("conv", 3), content: "Muito obrigada, Benedita! Temos novas chegadas esta semana.", direction: "out", timestamp: ts(190), read: true },
+  { id: id("msg", "3-3"), conversation_id: id("conv", 3), content: "Têm vestidos de festa disponíveis para o fim de semana?", direction: "in", timestamp: ts(90), read: true },
+  { id: id("msg", "4-1"), conversation_id: id("conv", 4), content: "Boa tarde, queria encomendar os sapatos de couro tamanho 43.", direction: "in", timestamp: ts(60 * 24 * 3), read: true },
+  { id: id("msg", "4-2"), conversation_id: id("conv", 4), content: "Perfeito, Filipe! Reservado. Entrega em 2 dias úteis.", direction: "out", timestamp: ts(60 * 24 * 3 - 10), read: true },
+  { id: id("msg", "4-3"), conversation_id: id("conv", 4), content: "Pago via transferência ou M-Pesa?", direction: "in", timestamp: ts(60 * 24 * 2), read: true },
+  { id: id("msg", "4-4"), conversation_id: id("conv", 4), content: "Ambas! M-Pesa: 923 000 000 ou transferência para o IBAN que enviamos por email.", direction: "out", timestamp: ts(60 * 24 * 2 - 5), read: true },
+  { id: id("msg", "4-5"), conversation_id: id("conv", 4), content: "Obrigado! Os sapatos chegaram em perfeito estado.", direction: "in", timestamp: ts(60 * 3), read: true },
+  { id: id("msg", "5-1"), conversation_id: id("conv", 5), content: "Olá! Adoro a bolsa que publicaram hoje no Instagram.", direction: "in", timestamp: ts(45), read: true },
+  { id: id("msg", "5-2"), conversation_id: id("conv", 5), content: "Boa tarde, Lúcia! É um dos nossos bestsellers. Temos em castanho e preto.", direction: "out", timestamp: ts(40), read: true },
+  { id: id("msg", "5-3"), conversation_id: id("conv", 5), content: "A bolsa que vi no Instagram ainda está disponível?", direction: "in", timestamp: ts(20), read: false },
+  { id: id("msg", "6-1"), conversation_id: id("conv", 6), content: "Olá, queria saber mais sobre os telemóveis disponíveis.", direction: "in", timestamp: ts(5), read: false },
 ];
 
 // ─── Channels ─────────────────────────────────────────────────
 
 const channels: ChannelConnection[] = [
-  { platform: "whatsapp",  connected: true,  account_name: "Shop & Go Luanda",  connected_at: "15 Jan 2025" },
-  { platform: "instagram", connected: true,  account_name: "@shopandgo.angola", connected_at: "20 Fev 2025" },
+  { platform: "whatsapp",  connected: true,  account_name: "Shop & Go Luanda",  connected_at: ts(60 * 24 * 210) },
+  { platform: "instagram", connected: true,  account_name: "@shopandgo.angola", connected_at: ts(60 * 24 * 175) },
   { platform: "facebook",  connected: false },
 ];
 

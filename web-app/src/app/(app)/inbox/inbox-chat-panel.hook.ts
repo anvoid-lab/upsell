@@ -67,7 +67,7 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
       conversation_id: selectedId,
       content: replyText,
       direction: "out",
-      timestamp: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+      timestamp: new Date(),
       read: true,
     };
     setMessages((prev) => [...prev, newMsg]);
@@ -85,7 +85,7 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
       conversation_id: selectedId,
       content: text,
       direction: "out",
-      timestamp: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+      timestamp: new Date(),
       sent_by_ai: !overrideText,
       read: true,
     };

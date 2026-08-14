@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -741,7 +742,9 @@ const MessageBubble: FC<{ message: Message }> = ({ message }) => {
         {message.content}
       </div>
       <div className="flex items-center gap-1.5 mt-1 px-1">
-        <span className="text-[10px] text-zinc-400">{message.timestamp}</span>
+        <span className="text-[10px] text-zinc-400" suppressHydrationWarning>
+          {formatTime(message.timestamp)}
+        </span>
         {message.sent_by_ai && (
           <span className="flex items-center gap-0.5 text-[10px] text-indigo-400 font-medium">
             <Sparkles className="w-2.5 h-2.5" /> VendAI

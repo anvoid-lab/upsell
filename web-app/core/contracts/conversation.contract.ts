@@ -7,12 +7,12 @@ import { ProductInterestContract } from "./product-interest.contract";
 
 const statusSchema = z.enum(["open", "pending", "resolved"]);
 
-// Shape stored in MongoDB — no messages (normalised to messages collection)
+// Raw DB shape — no messages (normalised into the messages table)
 const docSchema = z.object({
   id: z.string(),
   contact: ContactContract.entitySchema,
   last_message: z.string(),
-  last_message_at: z.string(),
+  last_message_at: z.coerce.date(),
   status: statusSchema,
   unread: z.boolean(),
   ai_scheduled: z.boolean(),

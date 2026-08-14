@@ -6,7 +6,7 @@ const connectionSchema = z.object({
   platform: typeSchema,
   connected: z.boolean(),
   account_name: z.string().nullish(),
-  connected_at: z.string().nullish(),
+  connected_at: z.coerce.date().nullish(),
 });
 
 const connectRequestSchema = z.object({

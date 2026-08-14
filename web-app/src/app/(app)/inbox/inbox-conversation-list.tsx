@@ -4,6 +4,7 @@ import { FC, useState, useEffect, useRef } from 'react';
 
 import { Settings, Search, Clock, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatListTimestamp } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -303,8 +304,11 @@ const ConversationRow: FC<{
           >
             {contact.name}
           </span>
-          <span className="text-[11px] text-zinc-400 ml-1 flex-shrink-0">
-            {last_message_at}
+          <span
+            className="text-[11px] text-zinc-400 ml-1 flex-shrink-0"
+            suppressHydrationWarning
+          >
+            {formatListTimestamp(last_message_at)}
           </span>
         </div>
         <p
@@ -378,8 +382,11 @@ const SearchResultRow: FC<{
           <span className="text-[13px] font-semibold text-zinc-900 truncate">
             {highlight(contact.name)}
           </span>
-          <span className="text-[11px] text-zinc-400 ml-2 flex-shrink-0">
-            {last_message_at}
+          <span
+            className="text-[11px] text-zinc-400 ml-2 flex-shrink-0"
+            suppressHydrationWarning
+          >
+            {formatListTimestamp(last_message_at)}
           </span>
         </div>
         <p className="text-xs text-zinc-400 truncate mt-0.5">

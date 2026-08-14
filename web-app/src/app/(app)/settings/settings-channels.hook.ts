@@ -29,7 +29,7 @@ export function useSettings(
     setChannels((prev) =>
       prev.map((c) =>
         c.platform === platform
-          ? { ...c, connected: true, account_name: "Connected account", connected_at: "Just now" }
+          ? { ...c, connected: true, account_name: "Connected account", connected_at: new Date() }
           : c,
       ),
     );

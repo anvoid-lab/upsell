@@ -11,7 +11,8 @@ const entitySchema = z.object({
   avatar_color: z.string().min(1),
   platform: ChannelContract.typeSchema,
   phone: z.string().nullish(),
-  first_contact: z.string(),
+  // Vive dentro do JSONB conversations.contact — string ISO na BD, Date no domínio.
+  first_contact: z.coerce.date(),
   status: statusSchema,
 });
 

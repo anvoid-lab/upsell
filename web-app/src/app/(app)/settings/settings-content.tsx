@@ -5,6 +5,7 @@ import { MessageCircle, Camera, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { SegmentedControl } from "@/components/shared/segmented-control";
+import { formatDate } from "@/lib/format";
 import { useSettings } from "./settings-channels.hook";
 import type { ChannelConnection, AISettings } from "@/types";
 
@@ -142,7 +143,7 @@ const ChannelCard: FC<{ channel: ChannelConnection; onConnect: () => void; onDis
         <div>
           <p className="text-sm font-medium text-zinc-800">{info.label}</p>
           {channel.connected
-            ? <p className="text-xs text-zinc-400">{channel.account_name} · Connected {channel.connected_at}</p>
+            ? <p className="text-xs text-zinc-400" suppressHydrationWarning>{channel.account_name}{channel.connected_at ? ` · Connected ${formatDate(channel.connected_at)}` : ""}</p>
             : <p className="text-xs text-zinc-400">Not connected</p>
           }
         </div>

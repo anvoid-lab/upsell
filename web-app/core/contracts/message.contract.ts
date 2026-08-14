@@ -7,7 +7,7 @@ const entitySchema = z.object({
   conversation_id: z.string(),
   content: z.string().min(1),
   direction: directionSchema,
-  timestamp: z.string(),
+  timestamp: z.coerce.date(),
   sent_by_ai: z.boolean().nullish(),
   read: z.boolean(),
 });

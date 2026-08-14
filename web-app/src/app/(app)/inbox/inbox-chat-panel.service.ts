@@ -48,8 +48,19 @@ class InboxChatPanelService {
       { conversation_id: conversationId, content },
       "InboxChatPanelService.sendMessage",
     );
-    const timestamp = new Date().toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
-    await this.messages.create({ conversation_id: conversationId, content, direction: "out", timestamp, read: true });
+    const now = new Date();
+    await this.messages.create({
+      conversation_id: conversationId,
+      content,
+      direction: "out",
+      timestamp: now,
+      read: true,
+    });
+    // Manter a conversa no topo da lista — a ordenação é por last_message_at.
+    await this.conversations.update(conversationId, {
+      last_message: content,
+      last_message_at: now,
+    } as Partial<ConversationDoc>);
   }
 
   async scheduleFollowUp(
@@ -65,7 +76,7 @@ class InboxChatPanelService {
     );
     const conv = await this.conversations.findById<ConversationDoc>(conversationId);
     const contactName = conv?.contact?.name ?? "Cliente";
-    const scheduledFor = new Date(Date.now() + delayHours * 60 * 60 * 1000).toISOString();
+    const scheduledFor = new Date(Date.now() + delayHours * 60 * 60 * 1000);
     await this.followUps.create({
       conversation_id: conversationId,
       contact_name: contactName,

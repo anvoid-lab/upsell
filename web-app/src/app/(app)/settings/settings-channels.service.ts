@@ -33,8 +33,10 @@ class SettingsChannelsService {
     validateContract(ChannelContract.connectRequestSchema, { platform }, "SettingsChannelsService.connectChannel");
     const docs = await this.channels.findAll<ChannelDoc>({ filters: { platform } as Partial<ChannelConnection> });
     if (docs[0]) {
-      const connectedAt = new Date().toLocaleDateString("pt-PT", { day: "2-digit", month: "short", year: "numeric" });
-      await this.channels.update(docs[0].id, { connected: true, connected_at: connectedAt } as Partial<ChannelConnection>);
+      await this.channels.update(docs[0].id, {
+        connected: true,
+        connected_at: new Date(),
+      } as Partial<ChannelConnection>);
     }
   }
 
