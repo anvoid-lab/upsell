@@ -39,6 +39,25 @@ export class AppException extends Error {
       });
     }
 
+    // Supabase/PostgREST errors are plain objects — not `instanceof Error` —
+    // but carry a string `message`. Without this branch every DB error (a
+    // constraint violation, an RLS rejection, ...) surfaced as an
+    // undiagnosable "Unknown error", forcing a trip to the server logs to
+    // find out what actually failed.
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      typeof (error as { message: unknown }).message === "string"
+    ) {
+      return new AppException((error as { message: string }).message, {
+        code: "DATABASE_ERROR",
+        statusCode: 500,
+        context,
+        details: error,
+      });
+    }
+
     return new AppException("Unknown error", {
       code: "UNKNOWN_ERROR",
       statusCode: 500,

@@ -47,5 +47,20 @@ describe("AppException", () => {
       expect(wrapped.message).toBe("Unknown error");
       expect(wrapped.details).toBe("a string was thrown");
     });
+
+    it("surfaces the real message from a PostgREST-shaped error object", () => {
+      // supabase-js throws plain objects for DB errors, not Error instances —
+      // this is what a NOT NULL violation looks like.
+      const postgrestError = {
+        code: "23502",
+        details: null,
+        hint: null,
+        message: 'null value in column "id" of relation "messages" violates not-null constraint',
+      };
+      const wrapped = AppException.wrap(postgrestError, "BaseRepository.create:messages");
+      expect(wrapped.code).toBe("DATABASE_ERROR");
+      expect(wrapped.message).toBe(postgrestError.message);
+      expect(wrapped.details).toBe(postgrestError);
+    });
   });
 });
