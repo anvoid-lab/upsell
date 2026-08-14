@@ -37,9 +37,10 @@ core/exceptions/         AppException.wrap() wraps every DB error with context
 database/client.ts       createSupabaseServerClient() — cookie-aware SSR Supabase client
 database/migrations/     Raw SQL run once in Supabase SQL Editor (not auto-applied)
 database/seed.ts         Inserts fixture data; run with `npm run seed`
-src/app/(auth)/          Login + magic-link callback routes
+src/app/(auth)/          Login + signup (email/password)
 src/app/(app)/           Authenticated app: inbox, analytics, settings
-src/lib/session.ts       JWT session cookie (jose) — vendai_session, 30-day TTL
+src/lib/format.ts        Date formatting — the DB stores instants, the view formats them
+src/proxy.ts             Middleware; validates the Supabase session
 src/types/index.ts       Re-exports all types from @core/contracts
 ```
 
@@ -60,13 +61,42 @@ Every domain entity has a contract file in `core/contracts/` that exports:
 
 ### Auth
 
-Magic-link email via Supabase Auth. After OAuth callback (`/auth/callback`), a signed JWT is written to the `vendai_session` httpOnly cookie using `src/lib/session.ts`. Middleware reads this cookie to protect `(app)` routes.
+Email + password via Supabase Auth (`signInWithPassword` / `signUp`). **The Supabase session
+is the only source of truth** — there is no second session layer. `src/proxy.ts` calls
+`supabase.auth.getUser()` to protect `(app)` routes.
+
+This matters for more than tidiness: RLS policies key off `auth.uid()`, so a custom session
+cookie that Supabase doesn't know about would authenticate the user while every query still
+returned zero rows — an app that looks empty instead of logged out.
+
+Signing up creates a new tenant: a trigger (`handle_new_user`) creates a `businesses` row and
+the matching `profiles` row.
+
+### Multi-tenancy and RLS
+
+Every domain table carries `business_id`, and RLS confines each tenant to its own rows.
+Policies use `current_business_id()`, a `SECURITY DEFINER` function resolving
+`auth.uid()` → `profiles.business_id`. It must be `SECURITY DEFINER`, otherwise a policy on
+`profiles` that reads `profiles` recurses infinitely.
+
+`business_id` columns default to `current_business_id()`, so the repository layer never has to
+set it on insert. `WITH CHECK` on every policy blocks writing into another tenant's rows.
+
+There are **no policies for `anon`** — without a session there is no data. `npm run seed`
+therefore needs `SUPABASE_SECRET_KEY`, which bypasses RLS.
 
 ### Database
 
-Supabase (PostgreSQL). To set up a fresh environment:
-1. Run `database/migrations/001_initial_schema.sql` in the Supabase SQL Editor.
-2. Run `npm run seed` to populate fixture data.
+Supabase (PostgreSQL). To set up a fresh environment, run these in the Supabase SQL Editor in
+order, then seed:
+
+1. `database/migrations/001_initial_schema.sql`
+2. `database/migrations/002_timestamps_to_timestamptz.sql`
+3. `database/migrations/003_multi_tenancy_and_rls.sql`
+4. `npm run seed`
+
+Timestamps are `timestamptz`. Never store display-formatted strings in a time column —
+formatting belongs in `src/lib/format.ts`.
 
 ### Required env vars (`web-app/.env.local`)
 
@@ -75,11 +105,11 @@ Copy `web-app/.env.example` and fill it in.
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-SESSION_SECRET=            # min 32 chars — openssl rand -base64 32
+SUPABASE_SECRET_KEY=       # server-only; bypasses RLS. Never prefix with NEXT_PUBLIC_
 ```
 
-`SESSION_SECRET` has no default. `src/lib/session.ts` throws on first use if it is
-missing or shorter than 32 characters, rather than falling back to a predictable key.
+`SUPABASE_SECRET_KEY` is used only by `npm run seed`. Prefixing it with `NEXT_PUBLIC_` would
+publish unrestricted database access in the browser bundle.
 
 ### Soft deletes
 

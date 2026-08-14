@@ -8,10 +8,9 @@
 > What does **not** exist yet is the product itself: there is no LLM, no messaging channel,
 > and no scheduler. Everything the user perceives as "AI" is static seed data.
 >
-> **Progress:** T-024, T-002, T-003, T-013 done; T-016 partly done. T-001 deferred by
-> decision, T-025 on hold (see each task). Next up: T-011 and T-012 — but note that T-012
-> (RLS) cannot be meaningfully enforced while T-001 is deferred, because the primary login
-> path never establishes a real Supabase auth session, so `auth.uid()` is NULL.
+> **Progress:** T-024, T-001, T-003, T-011, T-012, T-013 done (T-002 superseded by T-001);
+> T-016 partly done; T-025 on hold. Every P0 is now closed.
+> Next up: **T-004 → T-005** — the AI layer, i.e. the product itself.
 
 ---
 
@@ -63,28 +62,38 @@ not the whole product.
 
 ## P0 — Security and correctness blockers
 
-### ⊘ T-001 · Fix the magic-link authentication bypass — DEFERRED
-**File:** `web-app/src/app/(auth)/login/actions.ts:14`
+### ☑ T-001 · Fix the authentication bypass — DONE (2026-08-14)
+**File:** `web-app/src/app/(auth)/login/actions.ts`
 
-`requestMagicLinkAction` never calls Supabase. It accepts any email string, calls
-`createSession(email)`, and redirects straight to `/inbox`. Anyone can sign in as anyone by
-typing an email address. The OTP path (`verifyOtpAction`) is implemented correctly — the
-magic-link path was left as a stub.
+`requestMagicLinkAction` never called Supabase. It accepted any email string, called
+`createSession(email)`, and redirected to `/inbox` — anyone could sign in as anyone.
 
-> **Deferred deliberately (2026-08-14).** The bypass is intentional for now: the Supabase
-> project requires a corporate email domain, which blocks development sign-in. To be
-> revisited once that constraint is resolved.
->
-> **This must not reach any deployed environment.** Until it is fixed, treat every
-> environment running this code as publicly readable.
+Deferred earlier because Supabase's built-in mailer restricts delivery, blocking magic-link
+sign-in during development. **Password auth removes that constraint entirely: it sends no
+email.** T-012 then forced the issue — RLS keys off `auth.uid()`, which needs a real Supabase
+session.
 
-**Done when:** the action calls `supabase.auth.signInWithOtp({ email })`, redirects to
-`/login/check-email`, and a session is only created after the callback or OTP verifies the
-identity. No code path creates a session from unverified input.
+**Delivered:**
+- `signInAction` / `signUpAction` / `signOutAction` using `supabase.auth`. Sign-in failures
+  return one generic message so the form can't be used to probe which emails exist.
+- **The custom session layer is gone** (`src/lib/session.ts`, `vendai_session`, the OTP and
+  check-email routes). Two auth layers was not merely redundant — it produced exactly the bug
+  reported this session: the cookie said "authenticated", Supabase knew nothing, RLS returned
+  zero rows, and the app rendered empty instead of redirecting to login.
+- `src/proxy.ts` validates via `supabase.auth.getUser()` (server-verified) rather than
+  `getSession()` (reads a client-supplied cookie).
+- Sidebar shows the real business and email, with a sign-out button, replacing hardcoded
+  "João Dias / Admin".
+
+**Supersedes T-002:** `SESSION_SECRET` no longer exists — the module that used it is gone.
+
+**Still open:** confirm whether "Confirm email" is enabled in the Supabase dashboard. If it
+is, `signUp` returns no session and new users cannot enter until they confirm — which
+reintroduces the email-delivery constraint for signup (sign-in is unaffected).
 
 ---
 
-### ☑ T-002 · Move `SESSION_SECRET` into the environment — DONE (2026-08-14)
+### ☑ T-002 · Move `SESSION_SECRET` into the environment — DONE, later superseded
 **File:** `web-app/src/lib/session.ts`
 
 The JWT signing key fell back to the literal
@@ -102,7 +111,9 @@ The JWT signing key fell back to the literal
 **Verified:** with `SESSION_SECRET=` the server returns HTTP 500 and logs the explicit error;
 with it set, sign-in creates a session and the Inbox loads.
 
-**Still open:** set `SESSION_SECRET` in every deploy target before shipping.
+> **Superseded by T-001 (2026-08-14).** The custom session layer was removed in favour of
+> Supabase sessions, which RLS requires. `src/lib/session.ts` and `SESSION_SECRET` no longer
+> exist. The finding still stands as a rule: never fall back to a hard-coded secret.
 
 ---
 
@@ -239,26 +250,48 @@ sent from the Inbox arrives on the customer's phone.
 
 ## P2 — Required for a real launch
 
-### T-011 · Multi-tenancy
-**File:** `web-app/database/migrations/001_initial_schema.sql`
+### ☑ T-011 · Multi-tenancy — DONE (2026-08-14)
 
-No table carries a `business_id` or `user_id`. Every signed-in user sees the same
-conversations, contacts, and settings. The app currently cannot serve two customers.
+No table carried a `business_id` or `user_id`. Every signed-in user saw the same
+conversations, contacts, and settings — the app could not serve two customers.
 
-**Done when:** every domain table is scoped to a business, `BaseRepository` enforces the
-scope, and a user can only ever read or write rows belonging to their own business.
+**Delivered** (`database/migrations/003_multi_tenancy_and_rls.sql`, applied):
+- `businesses` table; `profiles.business_id` links a user to their tenant.
+- `business_id` on all six domain tables, backfilled into one business
+  ("Shop & Go Luanda") along with the existing auth user, so nothing was orphaned.
+- `NOT NULL` after backfill, plus an index on every `business_id`.
+- Each column defaults to `current_business_id()`, so **the repository layer needs no
+  changes** — inserts are stamped by the database rather than by application code that could
+  forget.
+- `handle_new_user` trigger: each signup creates its own business and profile, so a new
+  account is a new tenant.
 
 ---
 
-### T-012 · Enable Row Level Security
-**Depends on:** T-011
+### ☑ T-012 · Enable Row Level Security — DONE (2026-08-14)
 
-The migration explicitly runs `disable row level security` on all seven tables. Combined with
-a publishable key that reaches the browser, this means the database is protected only by the
-fact that nobody has tried yet.
+Migration 001 ran `disable row level security` on all seven tables. RLS had since been enabled
+in the dashboard, but with **zero policies** — which is default-deny, so the app showed no data
+at all.
 
-**Done when:** RLS is enabled on every table with policies keyed to the authenticated user's
-business, and a test proves cross-tenant reads are rejected at the database level.
+**Delivered:** 8 policies (one per table), keyed on `current_business_id()`, a
+`SECURITY DEFINER` function mapping `auth.uid()` → `profiles.business_id`. `SECURITY DEFINER`
+is required: a policy on `profiles` that reads `profiles` would recurse infinitely.
+No policy exists for `anon` — no session, no data.
+
+**Verified against the live database**, impersonating roles via `request.jwt.claims`:
+
+| Scenario | Result |
+|---|---|
+| Real user, own tenant | 6 conversations |
+| Different tenant | 0 rows across *every* table |
+| Cross-tenant insert | `new row violates row-level security policy` |
+
+The write test matters as much as the read test: `WITH CHECK` is what stops a tenant from
+injecting rows into someone else's business.
+
+**Note:** `npm run seed` now requires `SUPABASE_SECRET_KEY` — the publishable key can no
+longer write.
 
 ---
 
@@ -416,17 +449,15 @@ starting new work to avoid conflicts.
 
 ## Suggested sequence
 
-**Now — unblock and secure** ☑ *(T-001 deferred by decision)*
-~~T-024 (land the refactor) → T-002, T-003~~ → **T-025** (restore linting)
+**Now — unblock and secure** ☑
+~~T-024, T-001, T-002, T-003~~ — done. T-025 (linting) remains on hold.
 
-**Next — schema before it gets expensive**
-~~T-013~~ ☑ → T-011, T-012 — these get harder with every table and row added.
+**Next — schema before it gets expensive** ☑
+~~T-013, T-011, T-012~~ — all applied to the `Avoid Upsell` cloud project.
 
-> ⚠️ **T-012 is blocked by T-001.** RLS policies key off `auth.uid()`, but the deferred
-> magic-link bypass means the primary login path never creates a Supabase auth session — only
-> the custom `vendai_session` cookie. Enabling RLS today would either block every query
-> (`auth.uid()` NULL) or require policies so permissive they enforce nothing. T-011's schema
-> work (adding `business_id`, backfilling, indexing) can proceed independently.
+> The T-012 blocker resolved itself by forcing T-001: RLS needs `auth.uid()`, so the auth
+> bypass had to go. Password auth sidesteps the email-delivery constraint that caused the
+> deferral in the first place.
 
 **Then — prove the value proposition**
 T-004 → T-005 → T-006 → T-007 → T-015
