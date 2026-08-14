@@ -31,7 +31,7 @@ class AnalyticsOverviewService {
 
     const total = conversations.length;
     const resolved = conversations.filter((c) => c.status === "resolved").length;
-    const allFollowUps = conversations.flatMap((c) => c.follow_ups);
+    const allFollowUps = conversations.flatMap((c) => c.follow_ups ?? []);
     const sentFollowUps = allFollowUps.filter((f) => f.status === "sent").length;
     const aiMessages = messages.filter((m) => m.sent_by_ai).length;
     const convRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
