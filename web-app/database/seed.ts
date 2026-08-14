@@ -14,10 +14,19 @@ import {
 } from "../core/contracts";
 
 // ─── Supabase client (sem SSR — script standalone) ────────────
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-);
+// Usa a chave secreta: o RLS (migração 003) confina cada tenant ao seu próprio
+// business e não existem políticas para `anon`, logo a chave publishable não
+// consegue escrever nada. Esta chave nunca pode ter prefixo NEXT_PUBLIC_ —
+// ignora o RLS por completo e não pode chegar ao browser.
+const secretKey = process.env.SUPABASE_SECRET_KEY;
+if (!secretKey) {
+  throw new Error(
+    "SUPABASE_SECRET_KEY não está definido. Obtém-no em Project Settings → API Keys " +
+      "(chave `secret`) e acrescenta-o ao .env.local. Necessário porque o RLS bloqueia a chave publishable.",
+  );
+}
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, secretKey);
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -263,8 +272,41 @@ const aiSuggestions: AISuggestion[] = [
 
 // ─── Seed ─────────────────────────────────────────────────────
 
+/**
+ * Resolve o business a que as fixtures pertencem.
+ *
+ * A chave secreta não tem `auth.uid()`, por isso o default `current_business_id()`
+ * das colunas business_id resolveria para NULL. Cada linha tem de ser carimbada
+ * explicitamente.
+ */
+async function resolveBusinessId(): Promise<string> {
+  const { data: existing, error: selErr } = await supabase
+    .from("businesses")
+    .select("id, name")
+    .order("created_at")
+    .limit(1);
+  if (selErr) throw selErr;
+
+  if (existing?.[0]) {
+    console.log(`  Using business: ${existing[0].name}`);
+    return existing[0].id as string;
+  }
+
+  const { data: created, error: insErr } = await supabase
+    .from("businesses")
+    .insert({ name: "Shop & Go Luanda" })
+    .select("id")
+    .single();
+  if (insErr) throw insErr;
+  console.log("  Created business: Shop & Go Luanda");
+  return created.id as string;
+}
+
 async function seed() {
   console.log("Connecting to Supabase...");
+
+  const businessId = await resolveBusinessId();
+  const scoped = <T extends object>(row: T) => ({ ...row, business_id: businessId });
 
   // Limpar tabelas por ordem (FKs)
   const tables = ["ai_suggestions", "follow_ups", "messages", "conversations", "channels", "ai_settings"];
@@ -284,7 +326,7 @@ async function seed() {
     return validateContract(ConversationContract.docSchema.omit({ follow_ups: true } as never), doc, `seed:conv:${c.id}`);
   });
   const { error: convErr } = await supabase.from("conversations").insert(
-    convDocs.map((c) => ({ ...c, contact: c.contact, product_interest: c.product_interest ?? null }))
+    convDocs.map((c) => scoped({ ...c, contact: c.contact, product_interest: c.product_interest ?? null }))
   );
   if (convErr) throw convErr;
   console.log(`  ✓ ${convDocs.length} conversations`);
@@ -292,7 +334,7 @@ async function seed() {
   // Follow-ups (extraídos das conversations)
   const allFollowUps = conversations.flatMap((c) => c.follow_ups);
   if (allFollowUps.length > 0) {
-    const { error: fuErr } = await supabase.from("follow_ups").insert(allFollowUps);
+    const { error: fuErr } = await supabase.from("follow_ups").insert(allFollowUps.map(scoped));
     if (fuErr) throw fuErr;
     console.log(`  ✓ ${allFollowUps.length} follow_ups`);
   }
@@ -302,7 +344,7 @@ async function seed() {
   const validatedMsgs = messages.map((m) =>
     validateContract(MessageContract.entitySchema, m, `seed:msg:${m.id}`)
   );
-  const { error: msgErr } = await supabase.from("messages").insert(validatedMsgs);
+  const { error: msgErr } = await supabase.from("messages").insert(validatedMsgs.map(scoped));
   if (msgErr) throw msgErr;
   console.log(`  ✓ ${validatedMsgs.length} messages`);
 
@@ -311,14 +353,14 @@ async function seed() {
   const validatedChannels = channels.map((ch) =>
     validateContract(ChannelContract.connectionSchema, ch, `seed:channel:${ch.platform}`)
   );
-  const { error: chErr } = await supabase.from("channels").insert(validatedChannels);
+  const { error: chErr } = await supabase.from("channels").insert(validatedChannels.map(scoped));
   if (chErr) throw chErr;
   console.log(`  ✓ ${validatedChannels.length} channels`);
 
   // AI Settings
   console.log("Inserting AI settings...");
   const validatedSettings = validateContract(AISettingsContract.entitySchema, aiSettings, "seed:aiSettings");
-  const { error: aiErr } = await supabase.from("ai_settings").insert(validatedSettings);
+  const { error: aiErr } = await supabase.from("ai_settings").insert(scoped(validatedSettings));
   if (aiErr) throw aiErr;
   console.log("  ✓ 1 ai_settings");
 
@@ -327,7 +369,7 @@ async function seed() {
   const validatedSuggestions = aiSuggestions.map((s) =>
     validateContract(AISuggestionContract.entitySchema, s, `seed:suggestion:${s.conversation_id}`)
   );
-  const { error: sugErr } = await supabase.from("ai_suggestions").insert(validatedSuggestions);
+  const { error: sugErr } = await supabase.from("ai_suggestions").insert(validatedSuggestions.map(scoped));
   if (sugErr) throw sugErr;
   console.log(`  ✓ ${validatedSuggestions.length} ai_suggestions`);
 
