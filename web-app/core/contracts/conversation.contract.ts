@@ -23,6 +23,10 @@ const docSchema = z.object({
   // Id da conversa na plataforma externa (WhatsApp/Instagram/Facebook) —
   // null até a integração real de canais (T-010) existir.
   channel_conversation_id: z.string().nullish(),
+  // Heartbeat de presença (migração 008) — o painel de conversa aberto
+  // grava aqui periodicamente; o endpoint de drenagem da fila lê para
+  // decidir se vale a pena gerar. Não é para a UI, é só sinal interno.
+  last_viewed_at: z.coerce.date().nullish(),
   follow_ups: z.array(FollowUpContract.entitySchema),
 });
 
@@ -30,6 +34,12 @@ const docSchema = z.object({
 const entitySchema = docSchema.extend({
   messages: z.array(MessageContract.entitySchema).default([]),
 });
+
+// A linha crua que um evento Realtime (Postgres Changes) traz para esta
+// tabela. `follow_ups` não é coluna — é uma junção que só o serviço da lista
+// faz — por isso nunca vem num payload de INSERT/UPDATE, e validar contra
+// `docSchema` falharia sempre.
+const realtimeRowSchema = docSchema.omit({ follow_ups: true });
 
 const listRequestSchema = z.object({
   status: statusSchema.optional(),
@@ -49,6 +59,7 @@ export const ConversationContract = {
   statusSchema,
   docSchema,
   entitySchema,
+  realtimeRowSchema,
   listRequestSchema,
   listResponseSchema,
   detailResponseSchema,
@@ -57,6 +68,7 @@ export const ConversationContract = {
 export type ConversationStatus = z.infer<typeof statusSchema>;
 export type ConversationDoc = z.infer<typeof docSchema>;
 export type Conversation = z.infer<typeof entitySchema>;
+export type ConversationRealtimeRow = z.infer<typeof realtimeRowSchema>;
 export type ListConversationsRequest = z.infer<typeof listRequestSchema>;
 export type ListConversationsResponse = z.infer<typeof listResponseSchema>;
 export type ConversationDetailResponse = z.infer<typeof detailResponseSchema>;
