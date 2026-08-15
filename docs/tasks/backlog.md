@@ -1,16 +1,25 @@
 # VendAI — Engineering Backlog
 
-> **Status snapshot (2026-08-14):** the app is a high-fidelity prototype wired to a real
+> **Status snapshot (2026-08-15):** the app is a high-fidelity prototype wired to a real
 > Supabase database. All three screens (Inbox, Analytics, Settings) read live data through a
 > clean layer stack (Zod contracts → `BaseRepository` → `server-only` services → client views).
 > `npm run build` and `tsc --noEmit` both pass.
 >
-> What does **not** exist yet is the product itself: there is no LLM, no messaging channel,
-> and no scheduler. Everything the user perceives as "AI" is static seed data.
+> What does **not** exist yet is the real product: there is no `ml/` service and no messaging
+> channel (only the receiving half — T-010b). The Inbox suggestion card is live-wired,
+> debounced, and presence-gated (T-027, T-028), and genuinely varies per conversation, but
+> runs on `core/ai/`'s mock — there is still no LLM and no RAG behind it.
 >
-> **Progress:** T-024, T-001, T-003, T-011, T-012, T-013, T-026 done (T-002 superseded by
-> T-001); T-016 partly done; T-025 on hold. Every P0 is now closed.
-> Next up: **T-004 → T-005** — the AI layer, i.e. the product itself.
+> **Progress:** T-024, T-001, T-003, T-004, T-006, T-011, T-012, T-013, T-026, T-027, T-028,
+> T-029 done (T-002 superseded by T-001); T-010b done as part of T-027; T-016 and T-021 partly
+> done; T-025 on hold. Every P0 is now closed.
+>
+> Migrations now live in `supabase/migrations/`, applied via `supabase db push` — see T-029.
+>
+> **Infra note:** `pgmq` + `pg_cron` (T-028) are enabled and proven — reaching due work without
+> a hosted worker process. T-009 (follow-up scheduler) is the next consumer of that pattern.
+> Next up: **T-005 / T-007** — both belong to the new `ml/` Python service, which `core/ai/`
+> (T-004) already knows how to call and `AI_MOCK_MODE` already stands in for.
 
 ---
 
@@ -205,24 +214,60 @@ error no longer occurs after the `inbox-view.tsx` fix. Full re-verification afte
 
 ## P1 — The core product
 
-### T-004 · Add an LLM provider layer
-**New:** `web-app/core/ai/`
+### ☑ T-004 · Add an LLM provider layer — DONE (2026-08-14)
+**New:** `web-app/core/ai/`, `core/contracts/ai-usage.contract.ts`, `database/migrations/005_ai_usage.sql`
 
-No LLM is integrated anywhere in the codebase. Build a thin, provider-agnostic layer before
-any feature depends on it: client construction, model selection, retry and timeout handling,
-token accounting, and structured (schema-validated) output so generated drafts can be parsed
-reliably rather than scraped from prose.
+No LLM was integrated anywhere in the codebase. The scope was reframed during planning: **no
+LLM is called from this repository at all.** RAG, conversation analysis, and reply generation
+move to a separate Python service (`ml/`), hosted independently and sharing the same Supabase
+database (via `service_role`) so it can resolve conversation history and tenant knowledge
+itself. `core/ai/` is therefore a thin, typed client for that service, not a provider SDK
+wrapper — which is what actually makes the app provider-agnostic: swapping the LLM, the
+embedding model, or the vector store inside `ml/` never touches `web-app`.
 
-**Done when:** a `server-only` module exposes a typed `generate()` that returns
-contract-validated output, with the API key read from the environment and never reaching the
-client bundle.
+**Delivered:**
+- `core/ai/client.ts` — lazily reads `AI_INFERENCE_URL` / `AI_INFERENCE_API_KEY`, so
+  `next build` does not require them; throws `AI_CONFIG_ERROR` on first use if absent.
+- `core/ai/generate.ts` — `generate<T>({ method, businessId, conversationId?, params?,
+  responseSchema, usageSink? })`. Sends a small reference payload over JSON/HTTP (single
+  RPC-style `POST /generate`; gRPC rejected — the payload is a handful of scalars, so codegen
+  tooling buys nothing next to LLM inference time) and validates the response against the
+  caller's Zod schema.
+- Retry only on network failure, timeout (10s), and 429/5xx — never other 4xx, which are
+  malformed requests that would fail identically on a second attempt.
+- Errors: `AI_CONFIG_ERROR`, `AI_INFERENCE_ERROR`, `AI_INFERENCE_UNAVAILABLE`,
+  `AI_GENERATION_INVALID_OUTPUT`.
+- Migration 005 — `ai_usage` table with the same `current_business_id()` default and RLS
+  policy as every other domain table. Records failures as well as successes: a failed call
+  still burned tokens, and omitting it would make the provider's bill never reconcile.
+- `core/ai/` never imports `@db/client` — usage reaches the table through a caller-injected
+  `usageSink`, keeping the 9 new unit tests free of network and database.
+
+**Design note for whoever picks up T-005/T-007:** `businessId` must be resolved server-side
+from the authenticated session. `ml/` connects with `service_role` and bypasses RLS, so a
+wrong tenant id there is *not* caught by the database — every query in `ml/` has to filter
+`business_id` by hand.
+
+**Not verified end-to-end:** no `ml/` service exists yet, so `generate()` has never spoken to
+a real inference endpoint. That happens when T-005/T-006 wire a real caller.
 
 ---
 
 ### T-005 · Build the reply-suggestion engine
-**Depends on:** T-004
+**Depends on:** T-004 · **Implemented in:** `ml/` (Python), not `web-app`
 
 Given a conversation, produce a reply the seller can send. This is the heart of the product.
+
+Lives behind the `reply_suggestion` method of the `ml/` inference service; `web-app` reaches
+it through `generate()` (T-004) and only supplies `business_id` + `conversation_id` — `ml/`
+reads the history, settings, and RAG context from the shared database itself.
+
+The response shape `ml/` has to match is already pinned down on the `web-app` side:
+`core/contracts/reply-suggestion.contract.ts` — `{ candidates: [{ message, technique,
+rationale }] }`, `technique` being the same enum as `follow_ups.type`. Until `ml/` exists,
+`web-app` runs against `core/ai/mock-responses.ts`, a small canned rotation behind
+`AI_MOCK_MODE=true` that already returns this exact shape — real implementation just has to
+keep matching it.
 
 The generator receives:
 - full message history for the conversation
@@ -238,22 +283,41 @@ reflects that specific conversation, and switching conversations produces a diff
 
 ---
 
-### T-006 · Replace the static AI suggestion with live generation
-**Files:** `web-app/src/app/(app)/inbox/inbox-chat-panel.service.ts:38`, `database/seed.ts`
-**Depends on:** T-005
+### ☑ T-006 · Replace the static AI suggestion with live generation — DONE (2026-08-14), running on a mock
+**Files:** `web-app/src/app/(app)/inbox/inbox-chat-panel.service.ts`,
+`inbox-chat-panel.hook.ts`, `inbox-chat-panel.tsx`, `database/seed.ts`
+**Depends on:** T-005 — done on the `web-app` side against `core/ai/`'s mock, not real `ml/`
 
-`fetchAISuggestion()` reads a fixed row from `ai_suggestions` that the seed script inserted.
-The panel is presentation-complete but shows canned text.
+`fetchAISuggestion()` no longer reads a fixed row from `ai_suggestions`. It calls
+`generate({ method: "reply_suggestion", ... })`, resolving `business_id` server-side via the
+existing `currentUserService`. `ai_suggestions` is now written, never read, as an audit log
+(migration 006 adds the `rationale` column); the seed script no longer inserts fixture rows
+there.
 
-**Done when:** the panel calls the suggestion engine, shows a loading state while generating,
-lets the seller edit the draft before sending, and handles generation failure without
-breaking the conversation view. The `ai_suggestions` table becomes a cache/audit log of what
-was generated, not the source of truth.
+Along the way, fixed a real bug found while wiring this up:
+`inbox-chat-panel.hook.ts` fetched the conversation and the suggestion in a single
+`Promise.all` with no error handling — a suggestion failure meant the conversation itself
+never finished loading either. They're now independent fetches, each with its own loading
+state and failure handling, so `fetchAISuggestion()` returning `null` only empties the
+suggestion card and never blocks the rest of the panel.
+
+**Delivered:**
+- Real loading state on the suggestion card (`isSuggestionLoading`), separate from the
+  conversation's own.
+- Edit-before-send unchanged; the card now also shows the technique badge and rationale line
+  T-005's output carries, instead of just the message.
+- Generation failure returns `null` and leaves the panel intact — covered by
+  `inbox-chat-panel.service.test.ts`.
+- Token usage from every call, success or failure, is written to `ai_usage` (T-004) through a
+  caller-supplied `usageSink`.
+
+**Caveat:** this all runs against `core/ai/mock-responses.ts` (`AI_MOCK_MODE=true`) — `ml/`
+doesn't exist yet. Nothing here should need to change when it does; only the flag flips.
 
 ---
 
 ### T-007 · Conversation analysis — intent, objection, and buying stage
-**Depends on:** T-004
+**Depends on:** T-004 · **Implemented in:** `ml/` (Python), not `web-app`
 
 For the copilot to suggest the *right* reply it must first understand where the sale stands.
 Classify each conversation into a buying stage (browsing → asking → objecting → ready →
@@ -301,7 +365,7 @@ is ever delivered to an actual customer.
 
 Sub-tasks:
 - **T-010a** — Meta OAuth flow; store per-business tokens encrypted, handle refresh
-- **T-010b** — Webhook endpoint receiving inbound messages, with signature verification, idempotent delivery handling, and normalisation into the `messages`/`conversations` schema
+- **☑ T-010b** — Webhook endpoint receiving inbound messages, with signature verification, idempotent delivery handling, and normalisation into the `messages`/`conversations` schema — **DONE (2026-08-15)**, see T-027
 - **T-010c** — Outbound send adapter per platform, with delivery-status tracking
 - **T-010d** — WhatsApp Business template-message approval flow (required to open a conversation outside the 24-hour customer-service window — this constrains how follow-ups can work and needs designing early)
 
@@ -497,9 +561,15 @@ Once T-004 lands, every conversation view can trigger a paid LLM call. Add per-b
 quotas, caching of generated suggestions, and a spend ceiling before this is exposed to real
 traffic.
 
-### T-021 · Optimistic UI for message sending
+### ◐ T-021 · Optimistic UI for message sending
 `sendMessage()` round-trips to the server before the message appears. On a mobile connection
 in Angola this will feel broken. Render optimistically and reconcile.
+
+> **Reconciliation half done (2026-08-15, T-027).** `sendMessage()` now returns the created
+> row and the panel appends by its real bigint id, so the Realtime echo of the seller's own
+> message is recognised and ignored instead of rendering a second bubble. What remains is the
+> optimistic part: rendering *before* the round-trip, with a pending state and a rollback
+> path if the write fails.
 
 ### T-022 · Empty and onboarding states
 Every screen assumes seeded data exists. A newly signed-up business with zero conversations
@@ -539,6 +609,106 @@ which will also require fixing the `set-state-in-effect` findings above.
 ~836 uncommitted lines across `inbox-chat-panel.tsx`, `inbox-conversation-list.tsx`,
 `inbox-details-panel.tsx`, and `inbox-view.tsx`, plus a `CLAUDE.md` rewrite. Land this before
 starting new work to avoid conflicts.
+
+---
+
+### ☑ T-027 · Inbound webhook + reactive inbox — DONE (2026-08-15)
+**New:** `src/app/api/webhooks/channel/`, `use-realtime-inbox.hook.ts`,
+`reply-suggestion.service.ts`, `migrations/007`, `scripts/simulate-inbound.sh`
+
+Closes the loop the AI layer was missing: nothing ever fed it. Messages only entered through
+`npm run seed`, and the UI never noticed changes anyway.
+
+**Delivered:**
+- `POST /api/webhooks/channel` — public, HMAC-verified (`X-Hub-Signature-256` over the raw
+  body), idempotent via the `channel_message_id` unique constraint (catches `23505` rather
+  than check-then-insert, which loses the concurrent-delivery race). Creates contact +
+  conversation for a first-time lead. `GET` handles the provider verification handshake.
+- Suggestion generation in `after()`, so the provider still gets a fast 200.
+  **Superseded by T-028** — `after()` now enqueues instead of generating directly.
+- Migration 007 publishes `messages`, `conversations`, `ai_suggestions` to
+  `supabase_realtime`. The webhook pushes nothing — the write is the broadcast, and RLS is
+  the socket's authorization.
+- `scripts/simulate-inbound.sh` (`--new`, `--repeat`) signs properly rather than bypassing.
+- Entrance motion (`animate-fade-in`, already in the Tailwind config and unused) on the three
+  things that now arrive unprompted.
+
+**Bugs found and fixed on the way:**
+- `useChatPanel` ran in **two** instances (`inbox-view.tsx` and `inbox-chat-panel.tsx`), each
+  with its own `useEffect` — every conversation open fired `fetchConversationAction` and
+  `fetchAISuggestionAction` twice, doubling AI calls. Lifted to `InboxView`, passed down.
+- The conversation list was `useState(initialConversations)` with no setter — a snapshot
+  frozen at mount. No reactivity was possible without this.
+- Optimistic sends used fake `msg-${Date.now()}` ids, so the Realtime echo would have
+  rendered a duplicate bubble (see T-021).
+- `unread` never cleared; opening a conversation now marks it read.
+
+**Deliberately deferred:** typewriter/streaming reveal on the suggestion. JSON mode + Zod
+validation means the response arrives complete, so animating it character by character would
+misrepresent latency and add perceived delay. Real streaming needs SSE from `ml/` and a
+different validation strategy — an architecture decision, not a design task.
+
+---
+
+### ☑ T-028 · Debounced, presence-gated suggestion generation — DONE (2026-08-15)
+**New:** `core/queue/`, `src/app/api/jobs/drain-suggestions/`, `migrations/008`,
+`scripts/drain-suggestions.sh`
+
+T-027 generated a suggestion on *every* inbound message — a customer typing three separate
+bubbles in ten seconds burned three LLM calls for a draft only the last one would ever inform.
+
+**Delivered:**
+- `core/queue/suggestion-queue.ts` — `enqueueSuggestionJob()`/`drainDueSuggestionJobs()`,
+  wrapping two `security definer` Postgres functions (migration 008) built on `pgmq`. The
+  webhook's `after()` now enqueues (12s delay) instead of generating directly;
+  `enqueue_suggestion_job()` deletes any job already pending for that conversation before
+  adding the new one — that delete-then-send *is* the debounce, collapsing a burst into one job.
+- `pg_cron` drains the queue every 10s by calling `POST /api/jobs/drain-suggestions` (shared
+  secret via `INTERNAL_JOBS_SECRET`, read from Vault by the cron job — never a literal value in
+  the migration). `pg_cron` runs inside Supabase's own Postgres, so there's no worker process
+  for this app to host.
+- Presence gate, checked at *drain* time rather than enqueue time (checking on arrival would
+  treat a seller opening the conversation in reaction to that message as absent): the open
+  chat panel writes `conversations.last_viewed_at` every ~20s; the drain endpoint skips
+  generating if that timestamp isn't fresh (<60s). A seller who wasn't watching still gets a
+  suggestion the moment they open the conversation, via the existing cache-miss path.
+
+**Known limitation, not a bug:** `pg_cron` cannot reach `localhost`. The schedule is created
+and fires every 10s regardless, but no-ops until a real deploy URL and the Vault secrets exist
+(a manual, uncommitted step — see migration 008's comments). Until then,
+`scripts/drain-suggestions.sh` does by hand what the cron would do.
+
+**Reusable for T-009:** the follow-up scheduler needs exactly this shape of infrastructure
+("claims due follow-ups... without double-sending under concurrency"). The `pgmq`/`pg_cron`
+pattern proven here is directly applicable — most likely as its own queue rather than sharing
+this one.
+
+---
+
+### ☑ T-029 · Move `database/` to `supabase/`, adopt the Supabase CLI — DONE (2026-08-15)
+
+`web-app/database/` → `web-app/supabase/` (migrations, `client.ts`, `browser-client.ts`,
+`seed.ts` all moved together) — `supabase/` is the folder name the CLI itself expects
+(`supabase/migrations/`, `supabase/config.toml`), which is what makes `supabase db push`
+possible instead of pasting each migration into the SQL Editor by hand. Historical entries
+above that reference `database/migrations/00N_*.sql` describe the path as it was *at the time*
+— left as-is rather than rewritten.
+
+The 8 existing migrations were renamed to the CLI's timestamp format (e.g.
+`20260813000001_initial_schema.sql`) and reconciled into the CLI's tracking table via
+`supabase migration repair --status applied <version>` for each — bookkeeping only, no SQL
+re-executed. This was necessary, not just tidy: migration 003's `create policy` and 004's
+`alter table ... add column` have no `if not exists`/`drop ... if exists` guard, so a naive
+`db push` against the CLI's (empty) tracked history would have failed applying 003/004 against
+a database that already has them.
+
+`@db/*` still resolves via `tsconfig.json`/`vitest*.config.mts` — now to `supabase/*` — kept as
+`@db`, not renamed to `@supabase`, to avoid colliding with the real `@supabase/supabase-js` /
+`@supabase/ssr` npm packages.
+
+**Going forward:** new migrations via `supabase migration new <name>`, applied with
+`supabase db push` — the SQL Editor copy-paste workflow this project used through T-028 is
+retired.
 
 ---
 
