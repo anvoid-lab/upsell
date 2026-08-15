@@ -20,7 +20,7 @@ interface InboxConversationListProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   statusOverrides?: Record<string, ConversationStatus>;
-  initialConversations: Conversation[];
+  conversations: Conversation[];
 }
 
 const MAX_RECENT = 5;
@@ -29,7 +29,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
   selectedId,
   onSelect,
   statusOverrides = {},
-  initialConversations,
+  conversations,
 }) => {
   const {
     filtered,
@@ -37,7 +37,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
     activeTab,
     isLoading,
     setActiveTab,
-  } = useConversationList(selectedId, statusOverrides, initialConversations);
+  } = useConversationList(selectedId, statusOverrides, conversations);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -330,7 +330,10 @@ const ConversationRow: FC<{
             </Badge>
           )}
           {unread && (
-            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 ml-auto flex-shrink-0" />
+            // A linha em si não anima ao subir na lista: reordenar não é a
+            // mesma coisa que aparecer, e animar cada reordenação faria a
+            // lista inteira piscar. O que é novo é o ponto.
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 ml-auto flex-shrink-0 animate-fade-in motion-reduce:animate-none" />
           )}
         </div>
       </div>

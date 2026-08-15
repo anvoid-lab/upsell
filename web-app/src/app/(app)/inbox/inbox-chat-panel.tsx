@@ -17,6 +17,7 @@ import {
   Link,
   X,
 } from 'lucide-react';
+import type { FollowUpType } from '@core/contracts';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,7 @@ import { Avatar } from '@/components/shared/avatar';
 import { Spinner } from '@/components/shared/spinner';
 import { SectionLabel } from '@/components/shared/section-label';
 import { useConfirmToast } from '@/components/shared/confirm-toast';
-import { useChatPanel } from './inbox-chat-panel.hook';
+import type { UseChatPanelReturn } from './inbox-chat-panel.hook';
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
@@ -113,6 +114,15 @@ const STATUS_LABELS: Record<ConversationStatus, string> = {
   resolved: 'Resolved',
 };
 
+// Mesmos rótulos usados em settings-content.tsx para as técnicas de venda —
+// mantidos em inglês (o chrome da app), ao contrário do texto gerado (PT).
+const TECHNIQUE_LABELS: Record<FollowUpType, string> = {
+  urgency: 'Urgency',
+  upsell: 'Upsell',
+  social_proof: 'Social proof',
+  cart_recovery: 'Cart recovery',
+};
+
 const PLATFORM_LABELS: Record<Platform, string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
@@ -141,12 +151,15 @@ function groupMessagesByDate(messages: Message[]) {
 
 interface InboxChatPanelProps {
   selectedId: string | null;
+  /** Detido pelo InboxView — uma instância só, partilhada com o painel de detalhes. */
+  chatPanel: UseChatPanelReturn;
   onStatusChange?: (id: string, status: ConversationStatus) => void;
   onClose?: () => void;
 }
 
 export const InboxChatPanel: FC<InboxChatPanelProps> = ({
   selectedId,
+  chatPanel,
   onStatusChange,
   onClose,
 }) => {
@@ -156,6 +169,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     suggestion,
     replyText,
     isLoading,
+    isSuggestionLoading,
     isSending,
     suggestionStatus,
     setReplyText,
@@ -163,7 +177,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     handleSendSuggestion,
     handleScheduleSuggestion,
     handleDismissSuggestion,
-  } = useChatPanel(selectedId);
+    handleGenerateSuggestion,
+  } = chatPanel;
 
   const { show: showConfirm } = useConfirmToast();
 
@@ -428,10 +443,15 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
         ))}
       </div>
 
-      {/* ── AI suggestion ── */}
+      {/* ── AI suggestion ──
+          No "generating" state here: while the AI works there is no card at
+          all, only the pulsing icon in the reply toolbar. The card appears
+          once, already holding the finished suggestion. */}
       {suggestion &&
         (suggestionStatus === 'idle' || suggestionStatus === 'sending') && (
-          <div className="mx-4 mb-2 flex-shrink-0 relative">
+          // O único elemento que aparece sem qualquer acção do vendedor — o
+          // webhook gera em segundo plano e o Realtime empurra-o para aqui.
+          <div className="mx-4 mb-2 flex-shrink-0 relative animate-fade-in motion-reduce:animate-none">
             <div className="absolute inset-0 rounded-2xl bg-indigo-500/10 blur-sm" />
             <div className="relative p-3.5 bg-white border border-indigo-200 rounded-2xl">
               <div className="flex items-center gap-1.5 mb-2">
@@ -441,6 +461,9 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 <span className="text-xs font-semibold text-indigo-600 flex-1">
                   AI follow-up suggestion
                 </span>
+                <span className="px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-500 text-[10px] font-semibold">
+                  {TECHNIQUE_LABELS[suggestion.type] ?? suggestion.type}
+                </span>
                 <span className="text-[10px] text-zinc-400">Click to edit</span>
               </div>
               {isEditingSuggestion ? (
@@ -449,17 +472,22 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   onChange={(e) => setEditedSuggestion(e.target.value)}
                   autoFocus
                   rows={2}
-                  className="text-xs border border-indigo-200 rounded-lg p-2 mb-3 resize-none focus-visible:ring-1 focus-visible:ring-indigo-400 bg-indigo-50/30"
+                  className="text-xs border border-indigo-200 rounded-lg p-2 mb-1.5 resize-none focus-visible:ring-1 focus-visible:ring-indigo-400 bg-indigo-50/30"
                 />
               ) : (
                 <p
                   onClick={() => setIsEditingSuggestion(true)}
-                  className="text-xs text-zinc-600 leading-relaxed mb-3 pl-0.5 cursor-text hover:text-zinc-800 transition-colors"
+                  className="text-xs text-zinc-600 leading-relaxed mb-1.5 pl-0.5 cursor-text hover:text-zinc-800 transition-colors"
                 >
                   "{editedSuggestion}"
                 </p>
               )}
-              <div className="flex items-center gap-2">
+              {suggestion.rationale && (
+                <p className="text-[11px] text-zinc-400 leading-relaxed pl-0.5">
+                  {suggestion.rationale}
+                </p>
+              )}
+              <div className="flex items-center gap-2 mt-3">
                 <Button
                   onClick={() =>
                     handleSendSuggestion(
@@ -626,6 +654,30 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             )}
           >
             <div className="flex gap-0.5">
+              {/* This icon is the indicator that the AI is working: it pulses
+                  between more and less vivid while generating, and only becomes
+                  clickable again once it finishes. disabled:opacity-100
+                  overrides the Button's default disabled fade, which would
+                  otherwise flatten the pulse. */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'w-7 h-7 rounded-full text-indigo-500',
+                  isSuggestionLoading
+                    ? 'animate-pulse motion-reduce:animate-none disabled:opacity-100'
+                    : 'hover:bg-indigo-50',
+                )}
+                title={
+                  isSuggestionLoading
+                    ? 'Generating suggestion…'
+                    : 'Generate AI suggestion'
+                }
+                onClick={handleGenerateSuggestion}
+                disabled={isSuggestionLoading}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -726,6 +778,9 @@ const MessageBubble: FC<{ message: Message }> = ({ message }) => {
     <div
       className={cn(
         'flex max-w-[72%]',
+        // Uma mensagem recebida aparece sem o vendedor ter feito nada: entrar
+        // em vez de surgir de repente é o que lhe diz que algo mudou.
+        'animate-fade-in motion-reduce:animate-none',
         isOut
           ? 'self-end flex-col items-end'
           : 'self-start flex-col items-start',

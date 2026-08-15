@@ -2,7 +2,6 @@ import "server-only";
 
 import { BaseRepository } from "@core/repository";
 import {
-  AISuggestionContract,
   FollowUpContract,
   MessageContract,
   validateContract,
@@ -13,6 +12,8 @@ import {
   type Message,
 } from "@core/contracts";
 import { createSupabaseServerClient } from "@db/client";
+import { currentUserService } from "../current-user.service";
+import { replySuggestionService } from "./reply-suggestion.service";
 
 class InboxChatPanelService {
   private readonly conversations = new BaseRepository<ConversationDoc>({
@@ -30,19 +31,28 @@ class InboxChatPanelService {
     client: createSupabaseServerClient,
   });
 
-  private readonly aiSuggestions = new BaseRepository<AISuggestion>({
-    table: "ai_suggestions",
-    client: createSupabaseServerClient,
-  });
-
-  async fetchAISuggestion(conversationId: string): Promise<AISuggestion | null> {
-    const docs = await this.aiSuggestions.findAll<AISuggestion>({
-      filters: { conversation_id: conversationId } as Partial<AISuggestion>,
-    });
-    return AISuggestionContract.responseSchema.parse({ suggestion: docs[0] ?? null }).suggestion;
+  /**
+   * Resolve o tenant a partir da sessão autenticada e delega. A geração em si
+   * vive em `reply-suggestion.service.ts`, porque o webhook de canais precisa
+   * dela sem ter sessão nenhuma para resolver.
+   */
+  async fetchAISuggestion(
+    conversationId: string,
+    options?: { force?: boolean },
+  ): Promise<AISuggestion | null> {
+    const user = await currentUserService.fetchCurrentUser();
+    if (!user?.business_id) {
+      return null;
+    }
+    return replySuggestionService.generate(user.business_id, conversationId, options);
   }
 
-  async sendMessage(conversationId: string, content: string): Promise<void> {
+  /**
+   * Devolve a linha criada — não é cosmético. O painel acrescenta a mensagem
+   * localmente ao enviar, e o Realtime entrega a seguir a mesma linha; sem o id
+   * real da BD para comparar, as duas cópias renderizavam como duas bolhas.
+   */
+  async sendMessage(conversationId: string, content: string): Promise<Message> {
     validateContract(
       MessageContract.sendRequestSchema,
       { conversation_id: conversationId, content },
@@ -50,7 +60,7 @@ class InboxChatPanelService {
     );
     const now = new Date();
     // id é bigint gerado pela BD (migração 004) — não se especifica aqui.
-    await this.messages.create({
+    const created = await this.messages.create<Message>({
       conversation_id: conversationId,
       content,
       direction: "out",
@@ -61,6 +71,31 @@ class InboxChatPanelService {
     await this.conversations.update(conversationId, {
       last_message: content,
       last_message_at: now,
+    } as Partial<ConversationDoc>);
+
+    return validateContract(
+      MessageContract.entitySchema,
+      created,
+      "InboxChatPanelService.sendMessage",
+    );
+  }
+
+  /** Limpa o badge de não-lida quando o vendedor abre a conversa. */
+  async markAsRead(conversationId: string): Promise<void> {
+    await this.conversations.update(conversationId, {
+      unread: false,
+    } as Partial<ConversationDoc>);
+  }
+
+  /**
+   * Heartbeat de presença (migração 008) — chamado a espaços enquanto o
+   * painel desta conversa está aberto e visível. Separado de `markAsRead`
+   * de propósito: aquele corre uma vez ao abrir, este repete-se por todo o
+   * tempo que a conversa fica aberta, um ciclo de vida diferente.
+   */
+  async touchViewing(conversationId: string): Promise<void> {
+    await this.conversations.update(conversationId, {
+      last_viewed_at: new Date(),
     } as Partial<ConversationDoc>);
   }
 

@@ -14,12 +14,15 @@ interface UseConversationListReturn {
   setSearchQuery: (q: string) => void;
 }
 
+/**
+ * Só filtragem e pesquisa. A lista em si vive no InboxView, que é quem detém a
+ * subscrição Realtime — mantê-la aqui obrigava a sincronizar duas cópias.
+ */
 export function useConversationList(
   selectedId: string | null,
   statusOverrides: Record<string, ConversationStatus> = {},
-  initialConversations: Conversation[] = [],
+  conversations: Conversation[] = [],
 ): UseConversationListReturn {
-  const [conversations] = useState<Conversation[]>(initialConversations);
   const [activeTab, setActiveTab] = useState<ConversationStatus>("open");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -27,7 +30,14 @@ export function useConversationList(
     statusOverrides[c.id] ? { ...c, status: statusOverrides[c.id] } : c,
   );
 
-  const byStatus = withOverrides.filter((c) => c.status === activeTab);
+  // Mais recente primeiro — é isto que faz uma conversa saltar para o topo
+  // quando chega uma mensagem nova.
+  const byStatus = withOverrides
+    .filter((c) => c.status === activeTab)
+    .sort(
+      (a, b) =>
+        new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime(),
+    );
 
   const filtered = searchQuery.trim()
     ? byStatus.filter(
