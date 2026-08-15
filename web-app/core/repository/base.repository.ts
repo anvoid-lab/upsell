@@ -13,7 +13,12 @@ export type OrderBy<T> = {
 
 export type QueryOptions<T> = {
   filters?: Partial<T>;
-  orderBy?: OrderBy<T>;
+  // An array applies the orderings in sequence, so later entries break ties in
+  // earlier ones. That matters wherever the primary sort key can repeat:
+  // message timestamps come from the provider at second precision, so a burst
+  // of messages sent in the same second ties, and without a tie-break "the
+  // latest message" is whichever row Postgres happens to return first.
+  orderBy?: OrderBy<T> | OrderBy<T>[];
   page?: number;
   limit?: number;
   softDelete?: boolean;
@@ -38,7 +43,7 @@ export class BaseRepository<Entity extends object> {
     query: any,
     filters?: Partial<Entity>,
     softDelete = true,
-    orderBy?: OrderBy<Entity>,
+    orderBy?: OrderBy<Entity> | OrderBy<Entity>[],
   ) {
     if (softDelete) {
       query = query.is("deleted_at", null);
@@ -51,7 +56,9 @@ export class BaseRepository<Entity extends object> {
       }
     }
     if (orderBy) {
-      query = query.order(orderBy.column, { ascending: orderBy.ascending ?? true });
+      for (const order of Array.isArray(orderBy) ? orderBy : [orderBy]) {
+        query = query.order(order.column, { ascending: order.ascending ?? true });
+      }
     }
     return query;
   }
