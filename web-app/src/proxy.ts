@@ -10,6 +10,18 @@ import { createServerClient } from "@supabase/ssr";
  * — a app aparecia vazia em vez de mandar o utilizador para o login.
  */
 export async function proxy(request: NextRequest) {
+  // Webhooks de canais (chamados por um provider) e endpoints internos
+  // (chamados pelo pg_cron — migração 008) não trazem sessão de utilizador e
+  // não podem ser redirecionados para /login. Sai antes de getUser() para não
+  // pagar uma ida ao servidor de auth nestas chamadas — cada rota autentica-se
+  // à sua maneira (assinatura HMAC no webhook, segredo partilhado nos jobs).
+  if (
+    request.nextUrl.pathname.startsWith("/api/webhooks") ||
+    request.nextUrl.pathname.startsWith("/api/jobs")
+  ) {
+    return NextResponse.next({ request });
+  }
+
   // O cliente pode precisar de renovar o token, e essa renovação tem de ser
   // escrita de volta na resposta — daí construir a resposta antes.
   let response = NextResponse.next({ request });

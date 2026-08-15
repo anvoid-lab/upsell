@@ -4,7 +4,7 @@ import { format, formatDistanceToNowStrict, isThisYear, isToday } from "date-fns
  * Formatação de datas para apresentação.
  *
  * A base de dados guarda `timestamptz`; tudo o que é legível por humanos é
- * produzido aqui. Ver `database/migrations/002_timestamps_to_timestamptz.sql`.
+ * produzido aqui. Ver `supabase/migrations/20260813000002_timestamps_to_timestamptz.sql`.
  *
  * ⚠️ Estas funções dependem do fuso horário de quem as executa. O servidor
  * (tipicamente UTC) e o browser do utilizador produzem strings diferentes para

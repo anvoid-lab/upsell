@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "tsx --env-file=.env.local database/seed.ts",
+    "seed": "tsx --env-file=.env.local supabase/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "node --env-file=.env.local node_modules/vitest/vitest.mjs run --config vitest.integration.config.mts"
