@@ -9,7 +9,7 @@ export default defineConfig({
       // Mirrors tsconfig.json paths — Vitest doesn't read tsconfig aliases itself.
       "@/": path.resolve(root, "./src/") + "/",
       "@core/": path.resolve(root, "./core/") + "/",
-      "@db/": path.resolve(root, "./database/") + "/",
+      "@db/": path.resolve(root, "./supabase/") + "/",
       // Next.js build-time-only module; see test/stubs/server-only.ts.
       "server-only": path.resolve(root, "./test/stubs/server-only.ts"),
     },

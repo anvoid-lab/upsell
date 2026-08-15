@@ -8,7 +8,7 @@ export default defineConfig({
     alias: {
       "@/": path.resolve(root, "./src/") + "/",
       "@core/": path.resolve(root, "./core/") + "/",
-      "@db/": path.resolve(root, "./database/") + "/",
+      "@db/": path.resolve(root, "./supabase/") + "/",
       "server-only": path.resolve(root, "./test/stubs/server-only.ts"),
     },
   },

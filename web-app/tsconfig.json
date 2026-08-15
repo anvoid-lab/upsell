@@ -29,7 +29,7 @@
         "./core/*"
       ],
       "@db/*": [
-        "./database/*"
+        "./supabase/*"
       ]
     },
     "target": "ES2017"

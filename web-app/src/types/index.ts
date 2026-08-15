@@ -11,6 +11,7 @@ export type {
   Conversation,
   ConversationDataPoint,
   ConversationDoc,
+  ConversationRealtimeRow,
   ConversationStatus,
   FollowUp,
   FollowUpStatus,
