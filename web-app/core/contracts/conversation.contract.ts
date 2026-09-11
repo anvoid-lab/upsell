@@ -18,15 +18,10 @@ const docSchema = z.object({
   last_message_at: z.coerce.date(),
   status: statusSchema,
   unread: z.boolean(),
-  ai_scheduled: z.boolean(),
   product_interest: ProductInterestContract.entitySchema.nullish(),
   // Id da conversa na plataforma externa (WhatsApp/Instagram/Facebook) —
   // null até a integração real de canais (T-010) existir.
   channel_conversation_id: z.string().nullish(),
-  // Heartbeat de presença (migração 008) — o painel de conversa aberto
-  // grava aqui periodicamente; o endpoint de drenagem da fila lê para
-  // decidir se vale a pena gerar. Não é para a UI, é só sinal interno.
-  last_viewed_at: z.coerce.date().nullish(),
   follow_ups: z.array(FollowUpContract.entitySchema),
 });
 

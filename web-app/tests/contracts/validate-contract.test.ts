@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { validateContract } from "./validate-contract";
+import { validateContract } from "../../core/contracts/validate-contract";
 import { AppException } from "@core/exceptions";
 
 const schema = z.object({ id: z.string(), count: z.number().int() });

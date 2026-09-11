@@ -54,12 +54,8 @@ export function InboxView({ initialConversations }: InboxViewProps) {
   const [conversations, setConversations] =
     useState<Conversation[]>(initialConversations);
 
-  // useChatPanel corria em duas instâncias (aqui e dentro do InboxChatPanel),
-  // cada uma com o seu estado e o seu useEffect — o que duplicava cada
-  // fetchConversationAction e cada fetchAISuggestionAction ao abrir uma
-  // conversa. Agora é uma só, e o painel recebe-a por props.
   const chatPanel = useChatPanel(selectedId);
-  const { applyRealtimeMessage, applyRealtimeSuggestion } = chatPanel;
+  const { applyRealtimeMessage } = chatPanel;
 
   const handleConversationChange = useCallback((incoming: ConversationRealtimeRow) => {
     setConversations((prev) => {
@@ -85,7 +81,6 @@ export function InboxView({ initialConversations }: InboxViewProps) {
   useRealtimeInbox({
     onMessage: applyRealtimeMessage,
     onConversationChange: handleConversationChange,
-    onSuggestion: applyRealtimeSuggestion,
   });
 
   const handleStatusChange = (id: string, status: ConversationStatus) => {

@@ -6,7 +6,7 @@ vi.mock("@db/client", () => ({
   createSupabaseServiceClient: vi.fn(() => ({ from: fromMock })),
 }));
 
-const { channelWebhookService } = await import("./channel-webhook.service");
+const { channelWebhookService } = await import("../../src/app/api/webhooks/channel/channel-webhook.service");
 
 const INBOUND = {
   channel: "whatsapp" as const,

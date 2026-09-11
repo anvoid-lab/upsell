@@ -3,7 +3,7 @@ import "@/app/globals.css";
 
 export const metadata: Metadata = {
   title: "VendAI",
-  description: "Unified inbox and AI sales assistant",
+  description: "Unified customer inbox",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

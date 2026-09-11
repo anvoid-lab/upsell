@@ -5,6 +5,31 @@
 @layer base {
   :root {
     --radius: 0.5rem;
+
+    /* Primary palette — indigo-based, the single brand color.
+       Use `primary-*` classes, never `indigo-*` directly. */
+    --primary-50: 240 83% 97%;
+    --primary-100: 240 83% 93%;
+    --primary-200: 240 83% 86%;
+    --primary-300: 240 83% 75%;
+    --primary-400: 239 72% 63%;
+    --primary-500: 239 72% 63%;
+    --primary-600: 239 72% 53%;
+    --primary-700: 237 71% 43%;
+    --primary-800: 230 64% 41%;
+    --primary-900: 230 64% 35%;
+
+    /* Neutral palette — zinc-based, used for backgrounds, borders, text. */
+    --neutral-50: 0 0% 98%;
+    --neutral-100: 0 0% 96%;
+    --neutral-200: 0 0% 88%;
+    --neutral-300: 0 0% 80%;
+    --neutral-400: 0 0% 65%;
+    --neutral-500: 0 0% 50%;
+    --neutral-600: 0 0% 35%;
+    --neutral-700: 0 0% 25%;
+    --neutral-800: 0 0% 18%;
+    --neutral-900: 0 0% 12%;
   }
 
   * { box-sizing: border-box; }

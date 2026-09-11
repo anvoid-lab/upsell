@@ -86,8 +86,6 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
       "messages",
       "follow_ups",
       "channels",
-      "ai_settings",
-      "ai_suggestions",
     ] as const;
 
     for (const table of tables) {
@@ -119,7 +117,6 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
       last_message_at: new Date().toISOString(),
       status: "open",
       unread: true,
-      ai_scheduled: false,
       business_id: foreignBusinessId,
     });
     expect(error).not.toBeNull();
@@ -137,7 +134,6 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
         last_message_at: new Date().toISOString(),
         status: "open",
         unread: true,
-        ai_scheduled: false,
         // business_id omitted deliberately — proves the column default
         // (current_business_id()) stamps it correctly.
       })

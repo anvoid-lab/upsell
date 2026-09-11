@@ -1,28 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import type { ChannelConnection, AISettings } from "@/types";
-import { connectChannelAction, disconnectChannelAction, saveAISettingsAction } from "./actions";
+import type { ChannelConnection } from "@/types";
+import { connectChannelAction, disconnectChannelAction } from "./actions";
 
 interface UseSettingsReturn {
   channels: ChannelConnection[];
-  aiSettings: AISettings;
-  isSaving: boolean;
-  saved: boolean;
   handleConnect: (platform: string) => Promise<void>;
   handleDisconnect: (platform: string) => Promise<void>;
-  updateAISetting: <K extends keyof AISettings>(key: K, value: AISettings[K]) => void;
-  handleSaveAI: () => Promise<void>;
 }
 
 export function useSettings(
   initialChannels: ChannelConnection[],
-  initialAISettings: AISettings,
 ): UseSettingsReturn {
   const [channels, setChannels] = useState<ChannelConnection[]>(initialChannels);
-  const [aiSettings, setAISettings] = useState<AISettings>(initialAISettings);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   const handleConnect = async (platform: string) => {
     await connectChannelAction(platform);
@@ -46,27 +37,9 @@ export function useSettings(
     );
   };
 
-  const updateAISetting = <K extends keyof AISettings>(key: K, value: AISettings[K]) => {
-    setAISettings((prev) => ({ ...prev, [key]: value }));
-    setSaved(false);
-  };
-
-  const handleSaveAI = async () => {
-    setIsSaving(true);
-    await saveAISettingsAction(aiSettings);
-    setIsSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-  };
-
   return {
     channels,
-    aiSettings,
-    isSaving,
-    saved,
     handleConnect,
     handleDisconnect,
-    updateAISetting,
-    handleSaveAI,
   };
 }

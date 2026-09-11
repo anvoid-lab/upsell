@@ -1,5 +1,7 @@
 'use client';
 
+import { AI_FEATURES_ENABLED } from '@/lib/ai-features';
+
 import { FC, useState, useEffect, useRef } from 'react';
 import {
   MoreHorizontal,
@@ -97,15 +99,15 @@ const EMOJIS = [
 ];
 
 const STATUS_STYLES: Record<ConversationStatus, string> = {
-  open: 'bg-indigo-50 text-indigo-600 border-indigo-200',
-  pending: 'bg-amber-50  text-amber-600  border-amber-200',
-  resolved: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+  open: 'bg-primary-50 text-primary-600 border-primary-200',
+  pending: 'bg-neutral-50 text-neutral-600 border-neutral-200',
+  resolved: 'bg-neutral-50 text-neutral-600 border-neutral-200',
 };
 
 const STATUS_DOT: Record<ConversationStatus, string> = {
-  open: 'bg-indigo-500',
-  pending: 'bg-amber-500',
-  resolved: 'bg-emerald-500',
+  open: 'bg-primary-500',
+  pending: 'bg-neutral-400',
+  resolved: 'bg-neutral-400',
 };
 
 const STATUS_LABELS: Record<ConversationStatus, string> = {
@@ -130,9 +132,9 @@ const PLATFORM_LABELS: Record<Platform, string> = {
 };
 
 const PLATFORM_COLORS: Record<Platform, string> = {
-  whatsapp: 'bg-emerald-50 text-emerald-600',
-  instagram: 'bg-pink-50 text-pink-600',
-  facebook: 'bg-blue-50 text-blue-600',
+  whatsapp: 'bg-neutral-100 text-neutral-600',
+  instagram: 'bg-neutral-100 text-neutral-600',
+  facebook: 'bg-neutral-100 text-neutral-600',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -166,18 +168,11 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
   const {
     conversation,
     messages,
-    suggestion,
     replyText,
     isLoading,
-    isSuggestionLoading,
     isSending,
-    suggestionStatus,
     setReplyText,
     handleSendReply,
-    handleSendSuggestion,
-    handleScheduleSuggestion,
-    handleDismissSuggestion,
-    handleGenerateSuggestion,
   } = chatPanel;
 
   const { show: showConfirm } = useConfirmToast();
@@ -187,6 +182,15 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
   const [replyMode, setReplyMode] = useState<'reply' | 'note'>('reply');
   const [showTemplates, setShowTemplates] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // Preserved presentation only; all AI actions and data sources were removed.
+  const suggestion = null as AISuggestion | null;
+  const isSuggestionLoading = false;
+  const suggestionStatus = 'idle' as 'idle' | 'sending' | 'scheduled' | 'dismissed';
+  const handleSendSuggestion = (_text?: string) => {};
+  const handleScheduleSuggestion = (_hours: number) => {};
+  const handleDismissSuggestion = () => {};
+  const handleGenerateSuggestion = () => {};
+
   const [editedSuggestion, setEditedSuggestion] = useState('');
   const [isEditingSuggestion, setIsEditingSuggestion] = useState(false);
 
@@ -260,15 +264,15 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
 
   if (!selectedId)
     return (
-      <div className="flex-1 flex items-center justify-center bg-zinc-50/50">
+      <div className="flex-1 flex items-center justify-center bg-neutral-50/50">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center mx-auto mb-3">
-            <Sparkles className="w-5 h-5 text-zinc-400" />
+          <div className="w-12 h-12 rounded-2xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
+            <Sparkles className="w-5 h-5 text-neutral-400" />
           </div>
-          <p className="text-sm font-semibold text-zinc-600">
+          <p className="text-sm font-semibold text-neutral-600">
             Select a conversation
           </p>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-neutral-400 mt-1">
             Choose from the list on the left
           </p>
         </div>
@@ -288,7 +292,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
   return (
     <div className="flex-1 flex flex-col min-w-0">
       {/* ── Header ── */}
-      <div className="h-[52px] px-4 border-b border-zinc-200 flex items-center gap-2 flex-shrink-0 bg-white">
+      <div className="h-[52px] px-4 border-b border-neutral-200 flex items-center gap-2 flex-shrink-0 bg-white">
         <Avatar
           initials={contact.initials}
           bg={contact.avatar_bg}
@@ -296,10 +300,10 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
           size="sm"
         />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-zinc-900 leading-none">
+          <p className="text-sm font-semibold text-neutral-900 leading-none">
             {contact.name}
           </p>
-          <p className="text-[10px] text-zinc-400 mt-0.5 capitalize">
+          <p className="text-[10px] text-neutral-400 mt-0.5 capitalize">
             {contact.platform} · Active now
           </p>
         </div>
@@ -341,10 +345,10 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
         {/* Assign */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-zinc-200 text-zinc-500 hover:border-zinc-300 transition-colors">
+            <button className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-200 text-neutral-500 hover:border-neutral-300 transition-colors">
               {assignedMember ? (
                 <>
-                  <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-600 text-[9px] font-bold flex items-center justify-center">
+                  <span className="w-4 h-4 rounded-full bg-primary-100 text-primary-600 text-[9px] font-bold flex items-center justify-center">
                     {assignedMember.initials}
                   </span>
                   {assignedMember.name.split(' ')[0]}
@@ -358,7 +362,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[160px]">
-            <p className="px-2 py-1.5 text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">
+            <p className="px-2 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
               Assign to
             </p>
             <DropdownMenuSeparator />
@@ -371,7 +375,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   assignedTo === m.id && 'font-semibold',
                 )}
               >
-                <span className="w-5 h-5 rounded-full bg-zinc-100 text-zinc-600 text-[9px] font-bold flex items-center justify-center mr-2">
+                <span className="w-5 h-5 rounded-full bg-neutral-100 text-neutral-600 text-[9px] font-bold flex items-center justify-center mr-2">
                   {m.initials}
                 </span>
                 {m.name}
@@ -382,7 +386,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setAssignedTo(null)}
-                  className="text-xs text-zinc-400"
+                  className="text-xs text-neutral-400"
                 >
                   Unassign
                 </DropdownMenuItem>
@@ -397,7 +401,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              className="w-7 h-7 rounded-full text-zinc-400"
+              className="w-7 h-7 rounded-full text-neutral-400"
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
             </Button>
@@ -430,7 +434,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
       </div>
 
       {/* ── Messages ── */}
-      <div className="flex-1 overflow-auto px-5 py-5 flex flex-col gap-0 bg-zinc-50/40">
+      <div className="flex-1 overflow-auto px-5 py-5 flex flex-col gap-0 bg-neutral-50/40">
         {groups.map((group) => (
           <div key={group.dateLabel}>
             <DateSeparator label={group.dateLabel} />
@@ -447,24 +451,24 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
           No "generating" state here: while the AI works there is no card at
           all, only the pulsing icon in the reply toolbar. The card appears
           once, already holding the finished suggestion. */}
-      {suggestion &&
+      {AI_FEATURES_ENABLED && suggestion &&
         (suggestionStatus === 'idle' || suggestionStatus === 'sending') && (
           // O único elemento que aparece sem qualquer acção do vendedor — o
           // webhook gera em segundo plano e o Realtime empurra-o para aqui.
           <div className="mx-4 mb-2 flex-shrink-0 relative animate-fade-in motion-reduce:animate-none">
-            <div className="absolute inset-0 rounded-2xl bg-indigo-500/10 blur-sm" />
-            <div className="relative p-3.5 bg-white border border-indigo-200 rounded-2xl">
+            <div className="absolute inset-0 rounded-2xl bg-primary-500/10 blur-sm" />
+            <div className="relative p-3.5 bg-white border border-primary-200 rounded-2xl">
               <div className="flex items-center gap-1.5 mb-2">
-                <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <Sparkles className="w-3 h-3 text-indigo-500" />
+                <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 text-primary-500" />
                 </div>
-                <span className="text-xs font-semibold text-indigo-600 flex-1">
+                <span className="text-xs font-semibold text-primary-600 flex-1">
                   AI follow-up suggestion
                 </span>
-                <span className="px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-500 text-[10px] font-semibold">
+                <span className="px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-500 text-[10px] font-semibold">
                   {TECHNIQUE_LABELS[suggestion.type] ?? suggestion.type}
                 </span>
-                <span className="text-[10px] text-zinc-400">Click to edit</span>
+                <span className="text-[10px] text-neutral-400">Click to edit</span>
               </div>
               {isEditingSuggestion ? (
                 <Textarea
@@ -472,18 +476,18 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   onChange={(e) => setEditedSuggestion(e.target.value)}
                   autoFocus
                   rows={2}
-                  className="text-xs border border-indigo-200 rounded-lg p-2 mb-1.5 resize-none focus-visible:ring-1 focus-visible:ring-indigo-400 bg-indigo-50/30"
+                  className="text-xs border border-primary-200 rounded-lg p-2 mb-1.5 resize-none focus-visible:ring-1 focus-visible:ring-primary-400 bg-primary-50/30"
                 />
               ) : (
                 <p
                   onClick={() => setIsEditingSuggestion(true)}
-                  className="text-xs text-zinc-600 leading-relaxed mb-1.5 pl-0.5 cursor-text hover:text-zinc-800 transition-colors"
+                  className="text-xs text-neutral-600 leading-relaxed mb-1.5 pl-0.5 cursor-text hover:text-neutral-800 transition-colors"
                 >
                   "{editedSuggestion}"
                 </p>
               )}
               {suggestion.rationale && (
-                <p className="text-[11px] text-zinc-400 leading-relaxed pl-0.5">
+                <p className="text-[11px] text-neutral-400 leading-relaxed pl-0.5">
                   {suggestion.rationale}
                 </p>
               )}
@@ -514,7 +518,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   onClick={handleDismissSuggestion}
                   variant="ghost"
                   size="sm"
-                  className="rounded-full h-7 px-3 text-xs text-zinc-400"
+                  className="rounded-full h-7 px-3 text-xs text-neutral-400"
                 >
                   Dismiss
                 </Button>
@@ -523,9 +527,9 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
           </div>
         )}
 
-      {suggestionStatus === 'scheduled' && (
-        <div className="mx-4 mb-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-full text-xs text-emerald-700 font-medium flex items-center gap-1.5 flex-shrink-0">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+      {AI_FEATURES_ENABLED && suggestionStatus === 'scheduled' && (
+        <div className="mx-4 mb-2 px-3 py-2 bg-primary-50 border border-primary-200 rounded-full text-xs text-primary-700 font-medium flex items-center gap-1.5 flex-shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary-500 inline-block" />
           Follow-up scheduled — VendAI will send it automatically
         </div>
       )}
@@ -536,7 +540,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
         <div
           className={cn(
             'border rounded-2xl overflow-hidden bg-white shadow-sm',
-            replyMode === 'note' ? 'border-amber-300' : 'border-zinc-200',
+            replyMode === 'note' ? 'border-neutral-300' : 'border-neutral-200',
           )}
         >
           {/* Box header */}
@@ -544,8 +548,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             className={cn(
               'px-3 py-1.5 border-b flex items-center gap-2',
               replyMode === 'note'
-                ? 'border-amber-200 bg-amber-50/50'
-                : 'border-zinc-100',
+                ? 'border-neutral-200 bg-neutral-50/50'
+                : 'border-neutral-100',
             )}
           >
             {replyMode === 'reply' ? (
@@ -558,15 +562,15 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 >
                   {PLATFORM_LABELS[contact.platform]}
                 </span>
-                <span className="text-[10px] text-zinc-400">
+                <span className="text-[10px] text-neutral-400">
                   → {contact.name}
                 </span>
-                <span className="ml-auto text-[10px] text-zinc-300 flex items-center gap-1">
+                <span className="ml-auto text-[10px] text-neutral-300 flex items-center gap-1">
                   <Hash className="w-2.5 h-2.5" /> type / for templates
                 </span>
               </>
             ) : (
-              <span className="text-[10px] font-medium text-amber-600">
+              <span className="text-[10px] font-medium text-neutral-700">
                 Internal note · not visible to customer
               </span>
             )}
@@ -574,9 +578,9 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
 
           {/* Template picker */}
           {showTemplates && filteredTpls.length > 0 && (
-            <div className="border-b border-zinc-100">
+            <div className="border-b border-neutral-100">
               <div className="px-3 py-1.5 flex items-center gap-1.5">
-                <Hash className="w-3 h-3 text-zinc-400" />
+                <Hash className="w-3 h-3 text-neutral-400" />
                 <SectionLabel>Templates</SectionLabel>
               </div>
               {filteredTpls.map((t) => (
@@ -586,12 +590,12 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                     e.preventDefault();
                     selectTemplate(t.text);
                   }}
-                  className="w-full flex flex-col px-3 py-2 text-left hover:bg-zinc-50 border-t border-zinc-50 transition-colors"
+                  className="w-full flex flex-col px-3 py-2 text-left hover:bg-neutral-50 border-t border-neutral-50 transition-colors"
                 >
-                  <span className="text-xs font-medium text-zinc-800">
+                  <span className="text-xs font-medium text-neutral-800">
                     {t.label}
                   </span>
-                  <span className="text-[11px] text-zinc-400 truncate">
+                  <span className="text-[11px] text-neutral-400 truncate">
                     {t.text}
                   </span>
                 </button>
@@ -601,7 +605,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
 
           {/* Emoji picker */}
           {showEmojiPicker && (
-            <div className="border-b border-zinc-100 px-3 py-2 flex flex-wrap gap-1">
+            <div className="border-b border-neutral-100 px-3 py-2 flex flex-wrap gap-1">
               {EMOJIS.map((e) => (
                 <button
                   key={e}
@@ -609,7 +613,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                     ev.preventDefault();
                     handleEmojiSelect(e);
                   }}
-                  className="text-base w-8 h-8 flex items-center justify-center hover:bg-zinc-100 rounded-lg transition-colors"
+                  className="text-base w-8 h-8 flex items-center justify-center hover:bg-neutral-100 rounded-lg transition-colors"
                 >
                   {e}
                 </button>
@@ -639,8 +643,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             className={cn(
               'border-0 shadow-none rounded-none focus-visible:ring-0 resize-none text-sm px-3 py-2',
               replyMode === 'note'
-                ? 'bg-amber-50/30 placeholder:text-amber-300'
-                : 'placeholder:text-zinc-300',
+                ? 'bg-neutral-50/30 placeholder:text-neutral-300'
+                : 'placeholder:text-neutral-300',
             )}
           />
 
@@ -649,8 +653,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             className={cn(
               'px-3 py-2 border-t flex items-center justify-between',
               replyMode === 'note'
-                ? 'border-amber-200 bg-amber-50/30'
-                : 'border-zinc-100',
+                ? 'border-neutral-200 bg-neutral-50/30'
+                : 'border-neutral-100',
             )}
           >
             <div className="flex gap-0.5">
@@ -659,14 +663,14 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   clickable again once it finishes. disabled:opacity-100
                   overrides the Button's default disabled fade, which would
                   otherwise flatten the pulse. */}
-              <Button
+              {AI_FEATURES_ENABLED && <Button
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  'w-7 h-7 rounded-full text-indigo-500',
+                  'w-7 h-7 rounded-full text-primary-500',
                   isSuggestionLoading
                     ? 'animate-pulse motion-reduce:animate-none disabled:opacity-100'
-                    : 'hover:bg-indigo-50',
+                    : 'hover:bg-primary-50',
                 )}
                 title={
                   isSuggestionLoading
@@ -674,14 +678,14 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                     : 'Generate AI suggestion'
                 }
                 onClick={handleGenerateSuggestion}
-                disabled={isSuggestionLoading}
+                disabled
               >
                 <Sparkles className="w-3.5 h-3.5" />
-              </Button>
+              </Button>}
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-7 h-7 rounded-full text-zinc-400"
+                className="w-7 h-7 rounded-full text-neutral-400"
                 title="Templates"
                 onClick={openTemplates}
               >
@@ -690,7 +694,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-7 h-7 rounded-full text-zinc-400"
+                className="w-7 h-7 rounded-full text-neutral-400"
                 title="Attach file"
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -702,8 +706,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 className={cn(
                   'w-7 h-7 rounded-full',
                   showEmojiPicker
-                    ? 'text-indigo-500 bg-indigo-50'
-                    : 'text-zinc-400',
+                    ? 'text-primary-500 bg-primary-50'
+                    : 'text-neutral-400',
                 )}
                 title="Emoji"
                 onClick={() => setShowEmojiPicker((p) => !p)}
@@ -712,14 +716,14 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
               </Button>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="flex items-center gap-0.5 p-0.5 bg-zinc-100 rounded-full mr-1">
+              <div className="flex items-center gap-0.5 p-0.5 bg-neutral-100 rounded-full mr-1">
                 <button
                   onClick={() => setReplyMode('reply')}
                   className={cn(
                     'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all',
                     replyMode === 'reply'
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-zinc-400 hover:text-zinc-600',
+                      ? 'bg-white text-neutral-900 shadow-sm'
+                      : 'text-neutral-400 hover:text-neutral-600',
                   )}
                 >
                   <PenLine className="w-3 h-3" /> Reply
@@ -729,8 +733,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   className={cn(
                     'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all',
                     replyMode === 'note'
-                      ? 'bg-amber-500 text-white shadow-sm'
-                      : 'text-zinc-400 hover:text-zinc-600',
+                      ? 'bg-neutral-700 text-neutral-50 shadow-sm'
+                      : 'text-neutral-400 hover:text-neutral-600',
                   )}
                 >
                   <FileText className="w-3 h-3" /> Note
@@ -743,7 +747,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 className={cn(
                   'rounded-full h-7 px-4 text-xs',
                   replyMode === 'note' &&
-                    'bg-amber-500 hover:bg-amber-600 text-white',
+                     'bg-neutral-700 hover:bg-neutral-800 text-neutral-50',
                 )}
               >
                 {isSending
@@ -764,11 +768,11 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
 
 const DateSeparator: FC<{ label: string }> = ({ label }) => (
   <div className="flex items-center gap-3 my-4">
-    <div className="flex-1 h-px bg-zinc-100" />
-    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">
+    <div className="flex-1 h-px bg-neutral-100" />
+    <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
       {label}
     </span>
-    <div className="flex-1 h-px bg-zinc-100" />
+    <div className="flex-1 h-px bg-neutral-100" />
   </div>
 );
 
@@ -790,26 +794,26 @@ const MessageBubble: FC<{ message: Message }> = ({ message }) => {
         className={cn(
           'px-4 py-2.5 text-sm leading-relaxed shadow-sm',
           isOut
-            ? 'bg-indigo-600 text-white rounded-2xl rounded-br-md'
-            : 'bg-white text-zinc-800 rounded-2xl rounded-bl-md border border-zinc-100',
+            ? 'bg-primary-600 text-white rounded-2xl rounded-br-md'
+            : 'bg-white text-neutral-800 rounded-2xl rounded-bl-md border border-neutral-100',
         )}
       >
         {message.content}
       </div>
       <div className="flex items-center gap-1.5 mt-1 px-1">
-        <span className="text-[10px] text-zinc-400" suppressHydrationWarning>
+        <span className="text-[10px] text-neutral-400" suppressHydrationWarning>
           {formatTime(message.timestamp)}
         </span>
-        {message.sent_by_ai && (
-          <span className="flex items-center gap-0.5 text-[10px] text-indigo-400 font-medium">
+        {AI_FEATURES_ENABLED && (
+          <span className="flex items-center gap-0.5 text-[10px] text-primary-400 font-medium">
             <Sparkles className="w-2.5 h-2.5" /> VendAI
           </span>
         )}
         {isOut &&
           (message.read ? (
-            <CheckCheck className="w-3 h-3 text-indigo-400" />
+            <CheckCheck className="w-3 h-3 text-primary-400" />
           ) : (
-            <Check className="w-3 h-3 text-zinc-300" />
+            <Check className="w-3 h-3 text-neutral-300" />
           ))}
       </div>
     </div>

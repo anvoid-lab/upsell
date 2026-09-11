@@ -8,6 +8,7 @@ import { SegmentedControl } from "@/components/shared/segmented-control";
 import { formatDate } from "@/lib/format";
 import { useSettings } from "./settings-channels.hook";
 import type { ChannelConnection, AISettings } from "@/types";
+import { AI_FEATURES_ENABLED, DEFAULT_AI_SETTINGS } from "@/lib/ai-features";
 
 const PLATFORM_INFO = {
   whatsapp: { label: "WhatsApp Business", icon: MessageCircle, color: "bg-emerald-50 border-emerald-100", iconColor: "text-emerald-600" },
@@ -17,18 +18,26 @@ const PLATFORM_INFO = {
 
 interface SettingsContentProps {
   initialChannels: ChannelConnection[];
-  initialAISettings: AISettings;
 }
 
-export const SettingsContent: FC<SettingsContentProps> = ({ initialChannels, initialAISettings }) => {
-  const { channels, aiSettings, isSaving, saved, handleConnect, handleDisconnect, updateAISetting, handleSaveAI } =
-    useSettings(initialChannels, initialAISettings);
+export const SettingsContent: FC<SettingsContentProps> = ({ initialChannels }) => {
+  const { channels, handleConnect, handleDisconnect } = useSettings(initialChannels);
+  // Archived presentation only: these controls have no persistence or actions.
+  const aiSettings = DEFAULT_AI_SETTINGS;
+  const isSaving = false;
+  const saved = false;
+  const updateAISetting = (_key: keyof AISettings, _value: unknown) => {};
+  const handleSaveAI = () => {};
 
   return (
     <div className="flex-1 overflow-auto bg-zinc-50/50">
       <div className="max-w-2xl mx-auto px-8 py-8">
         <h1 className="text-lg font-semibold text-zinc-900 mb-0.5">Settings</h1>
-        <p className="text-sm text-zinc-400 mb-8">Manage your connected channels and AI behaviour</p>
+        <p className="text-sm text-zinc-400 mb-8">
+          {AI_FEATURES_ENABLED
+            ? "Manage your connected channels and AI behaviour"
+            : "Manage your connected channels"}
+        </p>
 
         {/* Channels */}
         <section className="mb-8">
@@ -45,7 +54,8 @@ export const SettingsContent: FC<SettingsContentProps> = ({ initialChannels, ini
           </div>
         </section>
 
-        {/* AI Settings */}
+        {AI_FEATURES_ENABLED && (
+        /* AI Settings */
         <section className="mb-8">
           <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-3">AI configuration</h2>
           <div className="bg-white border border-zinc-200 rounded-xl divide-y divide-zinc-100">
@@ -118,12 +128,13 @@ export const SettingsContent: FC<SettingsContentProps> = ({ initialChannels, ini
           </div>
 
           <div className="flex items-center gap-3 mt-4">
-            <Button onClick={handleSaveAI} disabled={isSaving} className="rounded-full px-5">
+            <Button onClick={handleSaveAI} disabled className="rounded-full px-5">
               {isSaving ? "Saving…" : "Save changes"}
             </Button>
             {saved && <span className="text-xs text-emerald-600 font-medium">✓ Saved</span>}
           </div>
         </section>
+        )}
       </div>
     </div>
   );

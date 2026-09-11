@@ -4,13 +4,12 @@ import { useEffect, useRef } from "react";
 import type { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 
 import { createSupabaseBrowserClient, ensureRealtimeAuth } from "@db/browser-client";
-import { ConversationContract, MessageContract, AISuggestionContract } from "@core/contracts";
-import type { AISuggestion, ConversationRealtimeRow, Message } from "@core/contracts";
+import { ConversationContract, MessageContract } from "@core/contracts";
+import type { ConversationRealtimeRow, Message } from "@core/contracts";
 
 type Handlers = {
   onMessage?: (message: Message) => void;
   onConversationChange?: (conversation: ConversationRealtimeRow) => void;
-  onSuggestion?: (suggestion: AISuggestion) => void;
 };
 
 /**
@@ -59,16 +58,6 @@ export function useRealtimeInbox(handlers: Handlers) {
             const parsed = ConversationContract.realtimeRowSchema.safeParse(payload.new);
             if (parsed.success) {
               handlersRef.current.onConversationChange?.(parsed.data);
-            }
-          },
-        )
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "ai_suggestions" },
-          (payload: RealtimePostgresInsertPayload<Record<string, unknown>>) => {
-            const parsed = AISuggestionContract.entitySchema.safeParse(payload.new);
-            if (parsed.success) {
-              handlersRef.current.onSuggestion?.(parsed.data);
             }
           },
         )

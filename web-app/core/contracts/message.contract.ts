@@ -10,7 +10,6 @@ const entitySchema = z.object({
   content: z.string().min(1),
   direction: directionSchema,
   timestamp: z.coerce.date(),
-  sent_by_ai: z.boolean().nullish(),
   read: z.boolean(),
   // Id da mensagem na plataforma externa — null até T-010. Vai ser essencial
   // para processamento idempotente de webhooks (não inserir a mesma mensagem

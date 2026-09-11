@@ -2,16 +2,13 @@ import "server-only";
 
 import { BaseRepository } from "@core/repository";
 import {
-  AISettingsContract,
   ChannelContract,
   validateContract,
-  type AISettings,
   type ChannelConnection,
 } from "@core/contracts";
 import { createSupabaseServerClient } from "@db/client";
 
 type ChannelDoc = ChannelConnection & { id: string };
-type AISettingsDoc = AISettings & { id: string };
 
 class SettingsChannelsService {
   private readonly channels = new BaseRepository<ChannelConnection>({
@@ -19,10 +16,6 @@ class SettingsChannelsService {
     client: createSupabaseServerClient,
   });
 
-  private readonly aiSettings = new BaseRepository<AISettings>({
-    table: "ai_settings",
-    client: createSupabaseServerClient,
-  });
 
   async fetchChannels(): Promise<ChannelConnection[]> {
     const docs = await this.channels.findAll<ChannelDoc>();
@@ -48,18 +41,6 @@ class SettingsChannelsService {
     }
   }
 
-  async fetchAISettings(): Promise<AISettings> {
-    const docs = await this.aiSettings.findAll<AISettings>();
-    return AISettingsContract.entitySchema.parse(docs[0]);
-  }
-
-  async saveAISettings(settings: AISettings): Promise<void> {
-    validateContract(AISettingsContract.entitySchema, settings, "SettingsChannelsService.saveAISettings");
-    const docs = await this.aiSettings.findAll<AISettingsDoc>();
-    if (docs[0]) {
-      await this.aiSettings.update(docs[0].id, settings);
-    }
-  }
 }
 
 export const settingsChannelsService = new SettingsChannelsService();

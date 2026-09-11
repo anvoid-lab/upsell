@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MessageContract } from "./message.contract";
+import { MessageContract } from "../../core/contracts/message.contract";
 
 const base = {
   id: "msg-1",

@@ -49,7 +49,7 @@ export const AnalyticsOverviewContent: FC<{ initialData: AnalyticsOverviewRespon
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-3 gap-3 mb-6">
           {kpis.map((kpi, i) => {
             const Icon = KPI_ICONS[i];
             return (

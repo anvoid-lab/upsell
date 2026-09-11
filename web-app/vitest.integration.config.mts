@@ -9,7 +9,7 @@ export default defineConfig({
       "@/": path.resolve(root, "./src/") + "/",
       "@core/": path.resolve(root, "./core/") + "/",
       "@db/": path.resolve(root, "./supabase/") + "/",
-      "server-only": path.resolve(root, "./test/stubs/server-only.ts"),
+      "server-only": path.resolve(root, "./tests/stubs/server-only.ts"),
     },
   },
   test: {

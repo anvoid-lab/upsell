@@ -1,30 +1,15 @@
 import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { receiveMock, enqueueMock, afterMock } = vi.hoisted(() => ({
+const { receiveMock, afterMock } = vi.hoisted(() => ({
   receiveMock: vi.fn(),
-  enqueueMock: vi.fn(),
   afterMock: vi.fn(),
 }));
 
-vi.mock("./channel-webhook.service", () => ({
+vi.mock("../../src/app/api/webhooks/channel/channel-webhook.service", () => ({
   channelWebhookService: { receive: receiveMock },
 }));
 
-vi.mock("@core/queue/suggestion-queue", () => ({
-  enqueueSuggestionJob: enqueueMock,
-}));
-
-vi.mock("@db/client", () => ({
-  createSupabaseServiceClient: vi.fn(() => ({})),
-}));
-
-// `after()` só corre depois da resposta sair; no teste executa-se logo, para
-// se poder afirmar sobre o que ele agenda.
-vi.mock("next/server", async () => {
-  const actual = await vi.importActual<typeof import("next/server")>("next/server");
-  return { ...actual, after: afterMock };
-});
 
 const SECRET = "segredo-de-teste";
 
@@ -55,7 +40,7 @@ function request(body: string, signature: string | null): Request {
 
 async function loadRoute() {
   vi.resetModules();
-  return import("./route");
+  return import("../../src/app/api/webhooks/channel/route");
 }
 
 describe("POST /api/webhooks/channel", () => {
@@ -63,7 +48,6 @@ describe("POST /api/webhooks/channel", () => {
     vi.stubEnv("CHANNEL_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("CHANNEL_VERIFY_TOKEN", "token-de-verificacao");
     receiveMock.mockReset();
-    enqueueMock.mockReset();
     afterMock.mockReset();
     afterMock.mockImplementation((fn: () => unknown) => fn());
     receiveMock.mockResolvedValue({
@@ -83,6 +67,7 @@ describe("POST /api/webhooks/channel", () => {
 
       const response = await POST(request(body, sign(body)) as never);
 
+      expect(afterMock).not.toHaveBeenCalled();
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ status: "accepted", conversation_id: "42" });
     });
@@ -160,40 +145,14 @@ describe("POST /api/webhooks/channel", () => {
     });
   });
 
-  describe("suggestion queueing", () => {
-    it("enqueues for an accepted message, with the business resolved server-side", async () => {
-      const body = JSON.stringify(VALID_PAYLOAD);
-      const { POST } = await loadRoute();
-
-      await POST(request(body, sign(body)) as never);
-
-      expect(enqueueMock).toHaveBeenCalledWith(expect.any(Function), "biz-1", "42");
-    });
-
-    it("does not enqueue on a duplicate delivery — the conversation did not change", async () => {
-      receiveMock.mockResolvedValue({
-        result: { status: "duplicate", conversation_id: "42" },
-        businessId: "biz-1",
-      });
-      const body = JSON.stringify(VALID_PAYLOAD);
-      const { POST } = await loadRoute();
-
-      const response = await POST(request(body, sign(body)) as never);
-
-      expect(response.status).toBe(200);
-      expect(await response.json()).toMatchObject({ status: "duplicate" });
-      expect(enqueueMock).not.toHaveBeenCalled();
-    });
-
-    it("still returns 200 when enqueueing fails — the message is already saved", async () => {
-      enqueueMock.mockRejectedValue(new Error("queue is down"));
-      const body = JSON.stringify(VALID_PAYLOAD);
-      const { POST } = await loadRoute();
-
-      const response = await POST(request(body, sign(body)) as never);
-
-      expect(response.status).toBe(200);
-    });
+  it("accepts duplicate deliveries without scheduling background work", async () => {
+    receiveMock.mockResolvedValue({ result: { status: "duplicate", conversation_id: "42" }, businessId: "biz-1" });
+    const body = JSON.stringify(VALID_PAYLOAD);
+    const { POST } = await loadRoute();
+    const response = await POST(request(body, sign(body)) as never);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ status: "duplicate" });
+    expect(afterMock).not.toHaveBeenCalled();
   });
 });
 

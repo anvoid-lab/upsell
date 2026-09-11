@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { formatDate, formatListTimestamp, formatRelative, formatTime } from "./format";
+import { formatDate, formatListTimestamp, formatRelative, formatTime } from "../../src/lib/format";
 
 describe("formatTime", () => {
   it("renders 24h HH:mm", () => {

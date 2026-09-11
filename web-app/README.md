@@ -1,6 +1,6 @@
 # VendAI Dashboard
 
-Next.js 15 + Tailwind CSS + shadcn/ui + Recharts
+Next.js 16 + Tailwind CSS + shadcn/ui + Recharts
 
 ## Setup
 
@@ -83,3 +83,10 @@ WHATSAPP_ACCESS_TOKEN=
 INSTAGRAM_ACCESS_TOKEN=
 FACEBOOK_PAGE_ACCESS_TOKEN=
 ```
+
+## AI removed
+
+AI generation, RAG, APIs, background jobs and model dependencies have been removed.
+The existing AI visual components are preserved but hidden and inert.
+Their visibility flag does not restore functionality. Apply the removal migrations
+to remove AI tables, queues, functions and exclusive columns.

@@ -142,7 +142,6 @@ class ChannelWebhookService {
       last_message_at: inbound.timestamp,
       status: "open",
       unread: true,
-      ai_scheduled: false,
       product_interest: null,
     } as Partial<ConversationDoc>);
 

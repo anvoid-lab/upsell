@@ -3,12 +3,10 @@ import {
   ConversationContract,
   MessageContract,
   ChannelContract,
-  AISettingsContract,
   validateContract,
   type ConversationDoc,
   type Message,
   type ChannelConnection,
-  type AISettings,
 } from "../core/contracts";
 
 // ─── Supabase client (sem SSR — script standalone) ────────────
@@ -63,7 +61,6 @@ const conversations: ConversationDoc[] = [
     last_message_at: ts(12),
     status: "open",
     unread: true,
-    ai_scheduled: true,
     product_interest: {
       item: "Capulana Tradicional",
       price: "2.500 Kz",
@@ -89,7 +86,6 @@ const conversations: ConversationDoc[] = [
     last_message_at: ts(35),
     status: "open",
     unread: true,
-    ai_scheduled: false,
     product_interest: {
       item: "Samsung Galaxy A55",
       price: "85.000 Kz",
@@ -126,7 +122,6 @@ const conversations: ConversationDoc[] = [
     last_message_at: ts(90),
     status: "pending",
     unread: false,
-    ai_scheduled: true,
     product_interest: {
       item: "Vestido de Festa",
       price: "15.000 Kz",
@@ -152,7 +147,6 @@ const conversations: ConversationDoc[] = [
     last_message_at: ts(60 * 3),
     status: "resolved",
     unread: false,
-    ai_scheduled: false,
     product_interest: {
       item: "Sapatos de Couro",
       price: "22.000 Kz",
@@ -189,7 +183,6 @@ const conversations: ConversationDoc[] = [
     last_message_at: ts(20),
     status: "open",
     unread: true,
-    ai_scheduled: false,
     product_interest: {
       item: "Bolsa de Senhora",
       price: "18.500 Kz",
@@ -215,7 +208,6 @@ const conversations: ConversationDoc[] = [
     last_message_at: ts(5),
     status: "open",
     unread: true,
-    ai_scheduled: true,
     follow_ups: [],
   },
 ];
@@ -254,18 +246,6 @@ const channels: ChannelConnection[] = [
   { platform: "instagram", connected: true,  account_name: "@shopandgo.angola", connected_at: ts(60 * 24 * 175) },
   { platform: "facebook",  connected: false },
 ];
-
-// ─── AI Settings ──────────────────────────────────────────────
-
-const aiSettings: AISettings = {
-  follow_up_delay_hours: 4,
-  use_urgency: true,
-  use_upsell: true,
-  use_social_proof: true,
-  use_cart_recovery: true,
-  tone: "friendly",
-  language: "pt",
-};
 
 // ─── Seed ─────────────────────────────────────────────────────
 
@@ -379,7 +359,7 @@ async function seed() {
   await ensureDevUser(businessId);
 
   // Limpar tabelas por ordem (FKs)
-  const tables = ["ai_suggestions", "follow_ups", "messages", "conversations", "channels", "ai_settings"];
+  const tables = ["follow_ups", "messages", "conversations", "channels"];
   for (const table of tables) {
     const { error } = await supabase.from(table).delete().not("id", "is", null);
     if (error) {
@@ -391,7 +371,7 @@ async function seed() {
 
   // Conversations (sem follow_ups — vão para tabela separada). Inseridas uma
   // a uma: o id é gerado pela BD (migração 004), e capturado aqui para ligar
-  // messages/follow_ups/ai_suggestions à conversa certa a seguir.
+  // messages/follow_ups à conversa certa a seguir.
   console.log("\nInserting conversations...");
   const conversationIdByLocalKey = new Map<string, string>();
   for (const c of conversations) {
@@ -451,16 +431,6 @@ async function seed() {
   const { error: chErr } = await supabase.from("channels").insert(validatedChannels.map(scoped));
   if (chErr) throw chErr;
   console.log(`  ✓ ${validatedChannels.length} channels`);
-
-  // AI Settings
-  console.log("Inserting AI settings...");
-  const validatedSettings = validateContract(AISettingsContract.entitySchema, aiSettings, "seed:aiSettings");
-  const { error: aiErr } = await supabase.from("ai_settings").insert(scoped(validatedSettings));
-  if (aiErr) throw aiErr;
-  console.log("  ✓ 1 ai_settings");
-
-  // ai_suggestions não é semeada: passou a ser um log de auditoria, escrito
-  // por fetchAISuggestion() a cada geração, nunca lido como fonte de dados.
 
   console.log("\nSeed completed successfully.");
   process.exit(0);

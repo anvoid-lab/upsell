@@ -22,7 +22,7 @@ vi.mock("@db/client", () => ({
   })),
 }));
 
-const { currentUserService } = await import("./current-user.service");
+const { currentUserService } = await import("../../src/app/(app)/current-user.service");
 
 describe("currentUserService.fetchCurrentUser", () => {
   beforeEach(() => {

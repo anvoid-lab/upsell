@@ -1,8 +1,6 @@
 export type NavSection = "inbox" | "mine" | "unassigned" | "followups" | "resolved" | "analytics" | "settings";
 
 export type {
-  AISuggestion,
-  AISettings,
   AnalyticsKPI,
   ChannelConnection,
   ChannelType,
@@ -24,3 +22,5 @@ export type {
   User,
   UserRole,
 } from "@core/contracts";
+
+export type { AISuggestion, AISettings } from "./disabled-ai";

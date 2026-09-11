@@ -10,13 +10,16 @@ export default defineConfig({
       "@/": path.resolve(root, "./src/") + "/",
       "@core/": path.resolve(root, "./core/") + "/",
       "@db/": path.resolve(root, "./supabase/") + "/",
-      // Next.js build-time-only module; see test/stubs/server-only.ts.
-      "server-only": path.resolve(root, "./test/stubs/server-only.ts"),
+      // Next.js build-time-only module; see tests/stubs/server-only.ts.
+      "server-only": path.resolve(root, "./tests/stubs/server-only.ts"),
     },
   },
   test: {
     environment: "node",
-    include: ["**/*.test.ts", "**/*.test.tsx"],
+    // Tests live under tests/, mirroring the source tree by feature — not
+    // next to the code they test. tests/stubs/ holds shared test doubles,
+    // not *.test.ts files, so the glob below never picks it up as a suite.
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     exclude: [
       "**/node_modules/**",
       "**/.next/**",

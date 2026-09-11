@@ -1,15 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { NextResponse, after, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { ChannelWebhookContract, validateContract } from "@core/contracts";
-import { createSupabaseServiceClient } from "@db/client";
-import { enqueueSuggestionJob } from "@core/queue/suggestion-queue";
 
 import { channelWebhookService } from "./channel-webhook.service";
-
-// O webhook corre fora de um pedido autenticado — sem sessão, o cliente SSR
-// por omissão não conseguiria ler nem escrever nada.
-const serviceClientFactory = () => Promise.resolve(createSupabaseServiceClient());
 
 export const maxDuration = 60;
 
@@ -84,30 +78,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "payload does not match contract" }, { status: 422 });
   }
 
-  const { result, businessId } = await channelWebhookService.receive(inbound);
-
-  // Só depois da resposta sair. Um provider espera um 200 rápido (a Meta faz
-  // retry se demorarmos). Numa reentrega ("duplicate") não se enfileira nada:
-  // a conversa não mudou.
-  //
-  // Enfileira, não gera diretamente — o job fica invisível por uns segundos
-  // (migração 008); se chegar outra mensagem entretanto, o job antigo é
-  // substituído, não somado. É isso que colapsa uma rajada de mensagens numa
-  // só geração em vez de uma por mensagem. Quem drena a fila e gera de facto
-  // é o cron de /api/jobs/drain-suggestions — o INSERT resultante propaga por
-  // Realtime (migração 007), por isso a sugestão aparece sozinha no painel de
-  // quem tiver a conversa aberta nessa altura.
-  if (result.status === "accepted") {
-    after(async () => {
-      try {
-        await enqueueSuggestionJob(serviceClientFactory, businessId, result.conversation_id);
-      } catch {
-        // Falhar a enfileirar não pode derrubar o webhook — a mensagem do
-        // cliente já está guardada, e o caminho preguiçoso ao abrir a
-        // conversa continua a cobrir a geração se isto falhar.
-      }
-    });
-  }
+  const { result } = await channelWebhookService.receive(inbound);
 
   return NextResponse.json(result, { status: 200 });
 }

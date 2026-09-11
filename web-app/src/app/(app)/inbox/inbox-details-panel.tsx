@@ -66,8 +66,8 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
 
   if (!conversation) {
     return (
-      <aside className="w-[25%] min-w-[260px] max-w-[380px] flex-shrink-0 border-l border-zinc-200 bg-zinc-50 flex items-center justify-center">
-        <p className="text-[13px] text-zinc-400 text-center px-4">
+      <aside className="w-[25%] min-w-[260px] max-w-[380px] flex-shrink-0 border-l border-neutral-200 bg-neutral-50 flex items-center justify-center">
+        <p className="text-[13px] text-neutral-400 text-center px-4">
           Select a conversation
           <br />
           to see details
@@ -80,13 +80,13 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
 
   return (
     <>
-      <aside className="w-[25%] min-w-[260px] max-w-[380px] flex-shrink-0 border-l border-zinc-200 bg-zinc-50 flex flex-col overflow-auto">
-        <div className="h-[52px] px-4 flex items-center border-b border-zinc-200 flex-shrink-0">
-          <span className="text-sm font-medium text-zinc-900">Details</span>
+      <aside className="w-[25%] min-w-[260px] max-w-[380px] flex-shrink-0 border-l border-neutral-200 bg-neutral-50 flex flex-col overflow-auto">
+        <div className="h-[52px] px-4 flex items-center border-b border-neutral-200 flex-shrink-0">
+          <span className="text-sm font-medium text-neutral-900">Details</span>
         </div>
 
         {/* Contact */}
-        <div className="px-4 py-3 border-b border-zinc-200">
+        <div className="px-4 py-3 border-b border-neutral-200">
           <SectionLabel className="mb-2.5">Contact</SectionLabel>
           {(
             [
@@ -105,15 +105,15 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
             ] as [string, React.ReactNode][]
           ).map(([k, v], i) => (
             <div key={i} className="flex justify-between items-center mb-1.5">
-              <span className="text-xs text-zinc-400">{k}</span>
-              <span className="text-xs text-zinc-800 font-medium">{v}</span>
+              <span className="text-xs text-neutral-400">{k}</span>
+              <span className="text-xs text-neutral-800 font-medium">{v}</span>
             </div>
           ))}
         </div>
 
         {/* Product */}
         {product_interest && (
-          <div className="px-4 py-3 border-b border-zinc-200">
+          <div className="px-4 py-3 border-b border-neutral-200">
             <SectionLabel className="mb-2.5">Product interest</SectionLabel>
             {(
               [
@@ -127,7 +127,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                         'flex items-center gap-1',
                         product_interest.is_low_stock
                           ? 'text-red-500 font-semibold'
-                          : 'text-zinc-800',
+                          : 'text-neutral-800',
                       )}
                     >
                       {product_interest.is_low_stock && (
@@ -144,7 +144,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
               ] as [string, React.ReactNode][]
             ).map(([k, v], i) => (
               <div key={i} className="flex justify-between items-center mb-1.5">
-                <span className="text-xs text-zinc-400">{k}</span>
+                <span className="text-xs text-neutral-400">{k}</span>
                 <span className="text-xs font-medium">{v}</span>
               </div>
             ))}
@@ -152,17 +152,17 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
         )}
 
         {/* Follow-ups */}
-        <div className="px-4 py-3 border-b border-zinc-200">
+        <div className="px-4 py-3 border-b border-neutral-200">
           <SectionLabel className="mb-2.5">Scheduled follow-ups</SectionLabel>
           {displayFollowUps.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-2">
-              <p className="text-xs text-zinc-400 text-center">
+              <p className="text-xs text-neutral-400 text-center">
                 No follow-ups scheduled
               </p>
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-full h-7 px-3 text-xs gap-1.5 border-dashed text-zinc-500"
+                className="rounded-full h-7 px-3 text-xs gap-1.5 border-dashed text-neutral-500"
                 onClick={() => setScheduleOpen(true)}
               >
                 <CalendarPlus className="w-3 h-3" />
@@ -174,31 +174,31 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
               {displayFollowUps.map((fu) => (
                 <div
                   key={fu.id}
-                  className="bg-white border border-zinc-200 rounded-lg p-2.5 mb-2"
+                  className="bg-white border border-neutral-200 rounded-lg p-2.5 mb-2"
                 >
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-semibold text-zinc-800">
+                    <span className="text-xs font-semibold text-neutral-800">
                       {fu.title}
                     </span>
                     <Badge
                       variant="secondary"
                       className={cn(
                         'text-[10px] px-1.5 py-0 h-4 rounded-full font-semibold',
-                        fu.status === 'sent'
-                          ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
-                          : fu.status === 'scheduled'
-                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-100'
-                            : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-100',
+                         fu.status === 'sent'
+                           ? 'bg-neutral-100 text-neutral-500 hover:bg-neutral-100'
+                           : fu.status === 'scheduled'
+                             ? 'bg-primary-100 text-primary-700 hover:bg-primary-100'
+                             : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-100',
                       )}
                     >
                       {fu.status}
                     </Badge>
                   </div>
-                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  <p className="text-[11px] text-neutral-400 leading-relaxed">
                     "{fu.message}"
                   </p>
                   <p
-                    className="text-[11px] text-zinc-300 mt-1"
+                    className="text-[11px] text-neutral-300 mt-1"
                     suppressHydrationWarning
                   >
                     {fu.sent_at
@@ -212,7 +212,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full rounded-full h-7 text-xs gap-1.5 text-zinc-400 border border-dashed border-zinc-200 mt-1"
+                className="w-full rounded-full h-7 text-xs gap-1.5 text-neutral-400 border border-dashed border-neutral-200 mt-1"
                 onClick={() => setScheduleOpen(true)}
               >
                 <CalendarPlus className="w-3 h-3" /> Add follow-up
@@ -230,20 +230,20 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
               {notes.map((note) => (
                 <div
                   key={note.id}
-                  className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 relative group"
+                  className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 relative group"
                 >
-                  <p className="text-xs text-zinc-700 leading-relaxed">
+                  <p className="text-xs text-neutral-700 leading-relaxed">
                     {note.text}
                   </p>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-zinc-400">
+                    <span className="text-[10px] text-neutral-400">
                       {note.createdAt}
                     </span>
                     <button
                       onClick={() =>
                         setNotes((prev) => prev.filter((n) => n.id !== note.id))
                       }
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-zinc-600"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-neutral-600"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -258,7 +258,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
             onChange={(e) => setNoteText(e.target.value)}
             placeholder="Add a private note…"
             rows={3}
-            className="text-xs resize-none rounded-lg border-zinc-200 placeholder:text-zinc-300 bg-white focus-visible:ring-1 focus-visible:ring-amber-300"
+            className="text-xs resize-none rounded-lg border-neutral-200 placeholder:text-neutral-300 bg-white focus-visible:ring-1 focus-visible:ring-primary-300"
           />
 
           <div className="mt-2 flex items-center gap-2">
@@ -271,8 +271,8 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
               Save note
             </Button>
             {noteSaved && (
-              <span className="text-xs text-emerald-600 font-medium flex items-center gap-1 flex-shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+              <span className="text-xs text-primary-600 font-medium flex items-center gap-1 flex-shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary-500 inline-block" />
                 Saved
               </span>
             )}
@@ -334,7 +334,7 @@ const ScheduleDialog: FC<{
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-zinc-600 block mb-1.5">
+            <label className="text-xs font-medium text-neutral-600 block mb-1.5">
               Message
             </label>
             <Textarea
@@ -346,7 +346,7 @@ const ScheduleDialog: FC<{
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-zinc-600 block mb-1.5">
+            <label className="text-xs font-medium text-neutral-600 block mb-1.5">
               Send in (hours)
             </label>
             <Input
@@ -385,17 +385,17 @@ const ScheduleDialog: FC<{
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
 const STATUS_BADGE: Record<string, string> = {
-  interested: 'bg-indigo-50 text-indigo-600 border-indigo-200',
-  converted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  lost: 'bg-zinc-100 text-zinc-500 border-zinc-200',
-  new: 'bg-sky-50 text-sky-600 border-sky-200',
+  interested: 'bg-primary-50 text-primary-600 border-primary-200',
+  converted: 'bg-neutral-100 text-neutral-600 border-neutral-200',
+  lost: 'bg-neutral-100 text-neutral-500 border-neutral-200',
+  new: 'bg-neutral-100 text-neutral-600 border-neutral-200',
 };
 
 const StatusBadge: FC<{ status: string }> = ({ status }) => (
   <span
     className={cn(
       'inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border capitalize',
-      STATUS_BADGE[status] ?? 'bg-zinc-100 text-zinc-500',
+      STATUS_BADGE[status] ?? 'bg-neutral-100 text-neutral-500',
     )}
   >
     {status}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AppException } from "./app.exception";
+import { AppException } from "../../core/exceptions/app.exception";
 
 describe("AppException", () => {
   it("defaults code and statusCode when not provided", () => {

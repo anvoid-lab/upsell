@@ -20,20 +20,20 @@ const FbLogo = () => (
   </svg>
 );
 
-const CONFIG: Record<Platform, { label: string; bg: string; text: string; Logo: FC }> = {
-  whatsapp: { label: "WhatsApp", bg: "bg-emerald-500/10 border-emerald-500/20", text: "text-emerald-600", Logo: WaLogo },
-  instagram: { label: "Instagram", bg: "bg-pink-500/10 border-pink-500/20",    text: "text-pink-600",   Logo: IgLogo },
-  facebook:  { label: "Facebook",  bg: "bg-blue-500/10 border-blue-500/20",     text: "text-blue-600",  Logo: FbLogo },
+const CONFIG: Record<Platform, { label: string; logoColor: string; Logo: FC }> = {
+  whatsapp: { label: "WhatsApp",  logoColor: "text-emerald-500", Logo: WaLogo },
+  instagram: { label: "Instagram", logoColor: "text-pink-500",   Logo: IgLogo },
+  facebook:  { label: "Facebook",  logoColor: "text-blue-500",   Logo: FbLogo },
 };
 
 interface PlatformBadgeProps { platform: Platform; className?: string; }
 
 export const PlatformBadge: FC<PlatformBadgeProps> = ({ platform, className }) => {
-  const { bg, text, Logo } = CONFIG[platform];
+  const { label, logoColor, Logo } = CONFIG[platform];
   return (
-    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium", bg, text, className)}>
-      <Logo />
-      {CONFIG[platform].label}
+    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-medium bg-neutral-100 text-neutral-600 border-neutral-200", className)}>
+      <span className={logoColor}><Logo /></span>
+      {label}
     </span>
   );
 };

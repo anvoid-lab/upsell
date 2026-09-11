@@ -8,7 +8,6 @@ import {
   type ConversationDataPoint,
   type ConversationDoc,
   type FollowUp,
-  type Message,
   type PlatformStat,
 } from "@core/contracts";
 import { createSupabaseServerClient } from "@db/client";
@@ -19,10 +18,6 @@ class AnalyticsOverviewService {
     client: createSupabaseServerClient,
   });
 
-  private readonly messages = new BaseRepository<Message>({
-    table: "messages",
-    client: createSupabaseServerClient,
-  });
 
   private readonly followUps = new BaseRepository<FollowUp>({
     table: "follow_ups",
@@ -31,23 +26,20 @@ class AnalyticsOverviewService {
 
   async fetchOverview(): Promise<AnalyticsOverviewResponse> {
     // follow_ups é tabela própria — não vem no select * de conversations.
-    const [conversations, messages, allFollowUps] = await Promise.all([
+    const [conversations, allFollowUps] = await Promise.all([
       this.conversations.findAll<ConversationDoc>(),
-      this.messages.findAll<Message>(),
       this.followUps.findAll<FollowUp>(),
     ]);
 
     const total = conversations.length;
     const resolved = conversations.filter((c) => c.status === "resolved").length;
     const sentFollowUps = allFollowUps.filter((f) => f.status === "sent").length;
-    const aiMessages = messages.filter((m) => m.sent_by_ai).length;
     const convRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
 
     const kpis: AnalyticsKPI[] = [
       { label: "Total Conversas",     value: String(total),         delta: "+0", delta_positive: true, icon: "💬" },
       { label: "Follow-ups Enviados", value: String(sentFollowUps), delta: "+0", delta_positive: true, icon: "✉️" },
       { label: "Taxa de Conversão",   value: `${convRate}%`,        delta: "+0", delta_positive: true, icon: "🎯" },
-      { label: "Respostas de IA",     value: String(aiMessages),    delta: "+0", delta_positive: true, icon: "🤖" },
     ];
 
     const platforms = ["whatsapp", "instagram", "facebook"] as const;
