@@ -57,6 +57,25 @@ describe("Unipile inbox provider", () => {
     expect(payload).not.toHaveProperty("providers");
   });
 
+  it("loads the provider identity of the connected account owner", async () => {
+    vi.stubEnv("UNIPILE_API_URL", "https://api.example.test");
+    vi.stubEnv("UNIPILE_API_KEY", "api-key");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({
+        id: "unipile-account", type: "INSTAGRAM", name: "Store",
+        sources: [{ status: "OK" }],
+      }))
+      .mockResolvedValueOnce(Response.json({
+        provider_id: "instagram-user-1", public_identifier: "store",
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const account = await new UnipileInboxProvider().getAccount("unipile-account");
+
+    expect(account.providerIdentityId).toBe("instagram-user-1");
+    expect(fetchMock.mock.calls[1][0]).toContain("/users/me?account_id=unipile-account");
+  });
+
   it("normalizes an inbound WhatsApp message", () => {
     const event = new UnipileInboxProvider().parseWebhook({
       event: "message_received",

@@ -5,7 +5,7 @@ import { useCallback, useEffect } from "react";
 import { CheckCircle2, Instagram, Loader2, MessageCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useIntegration } from "./integration.hook";
+import { INBOX_INTEGRATION_POPUP_NAME, useIntegration } from "./integration.hook";
 import { DEFAULT_INBOX_CHANNEL, type InboxChannel } from "@core/contracts/inbox.contract";
 
 const CHANNEL_DETAILS = {
@@ -35,13 +35,13 @@ export function IntegrationView({
   const { status, error, url, start } = useIntegration(channel, result);
   const Icon = details.Icon;
   useEffect(() => {
-    // A script-opened Hosted Auth window can close itself after Unipile redirects back.
-    if (result === "success") window.close();
-  }, [result]);
-  useEffect(() => {
     if (status === "connected") router.refresh();
   }, [status, router]);
   const close = useCallback(() => {
+    if (window.name === INBOX_INTEGRATION_POPUP_NAME) {
+      window.close();
+      return;
+    }
     if (onClose) onClose();
     else router.replace("/inbox");
     router.refresh();

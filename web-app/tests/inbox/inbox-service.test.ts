@@ -5,7 +5,8 @@ const mocks = vi.hoisted(() => ({
   writes: vi.fn(), sync: vi.fn(),
   row: {
     id: "22222222-2222-4222-8222-222222222222", business_id: "11111111-1111-4111-8111-111111111111",
-    provider: "unipile", provider_account_id: "account-1", connection_status: "connected"
+    provider: "unipile", provider_account_id: "account-1", provider_identity_id: "instagram-user-1",
+    connection_status: "connected"
   },
 }));
 vi.mock("@db/client", () => ({
@@ -88,7 +89,8 @@ describe("InboxService integration", () => {
 
   it("binds the callback to the signed channel and ignores a supplied business ID", async () => {
     vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
-      id: "account-1", channel: "whatsapp", name: "Store", status: "connected", metadata: {},
+      id: "account-1", providerIdentityId: "instagram-user-1", channel: "whatsapp",
+      name: "Store", status: "connected", metadata: {},
     });
     const register = vi.spyOn(UnipileInboxProvider.prototype, "ensureWebhooks");
     const name = await createHostedAuthState(mocks.row.business_id, mocks.row.id, "unipile", "whatsapp");
@@ -98,13 +100,17 @@ describe("InboxService integration", () => {
     expect(mocks.filters).toHaveBeenCalledWith("channels", "id", mocks.row.id);
     expect(mocks.filters).toHaveBeenCalledWith("channels", "business_id", mocks.row.business_id);
     expect(mocks.filters).not.toHaveBeenCalledWith("channels", "business_id", "forged");
+    expect(mocks.writes).toHaveBeenCalledWith("channels", expect.objectContaining({
+      provider_identity_id: "instagram-user-1",
+    }));
     expect(register).not.toHaveBeenCalled();
     expect(mocks.sync).not.toHaveBeenCalled();
   });
 
   it("rejects a callback when the provider account belongs to another channel", async () => {
     vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
-      id: "account-1", channel: "whatsapp", name: "Store", status: "connected", metadata: {},
+      id: "account-1", providerIdentityId: "whatsapp-user-1", channel: "whatsapp",
+      name: "Store", status: "connected", metadata: {},
     });
     const name = await createHostedAuthState(
       mocks.row.business_id,
@@ -128,12 +134,41 @@ describe("InboxService integration", () => {
     expect(mocks.serviceClient).not.toHaveBeenCalled();
   });
 
-  it("disconnects the scoped provider account before clearing its local association", async () => {
+  it("disconnects the provider account while preserving its stable identity", async () => {
+    vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
+      id: "account-1", providerIdentityId: "instagram-user-1", channel: "instagram",
+      name: "Store", status: "connected", metadata: {},
+    });
     const disconnect = vi.spyOn(UnipileInboxProvider.prototype, "disconnectAccount").mockResolvedValue();
     await new InboxService().disconnect();
     expect(disconnect).toHaveBeenCalledWith("account-1");
     expect(mocks.writes).toHaveBeenCalledWith("channels", expect.objectContaining({
-      provider_account_id: null, connection_status: "disconnected", connected: false,
+      provider_account_id: null, provider_identity_id: "instagram-user-1",
+      connection_status: "disconnected", connected: false,
+    }));
+  });
+
+  it("rejects a new provider identity from inheriting an existing channel history", async () => {
+    vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
+      id: "account-2", providerIdentityId: "another-instagram-user", channel: "instagram",
+      name: "Other Store", status: "connected", metadata: {},
+    });
+    const name = await createHostedAuthState(
+      mocks.row.business_id,
+      mocks.row.id,
+      "unipile",
+      "instagram",
+    );
+
+    await new InboxService().receiveConnectionStatus({
+      status: "CREATION_SUCCESS", account_id: "account-2", name,
+    });
+
+    expect(mocks.writes).toHaveBeenCalledWith("channels", expect.objectContaining({
+      connection_status: "error", connected: false,
+    }));
+    expect(mocks.writes).not.toHaveBeenCalledWith("channels", expect.objectContaining({
+      provider_account_id: "account-2",
     }));
   });
 

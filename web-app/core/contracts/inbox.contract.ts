@@ -22,6 +22,7 @@ export type HostedAuthRequest = {
 
 export type ProviderAccount = {
   id: string;
+  providerIdentityId: string;
   channel: InboxChannel;
   name: string | null;
   status: InboxConnectionStatus;
@@ -118,6 +119,9 @@ const unipileAccountSchema = z.object({
   connection_params: z.record(z.string(), z.unknown()).optional(),
   sources: z.array(z.object({ status: z.string() }).passthrough()).optional(),
 }).passthrough();
+const unipileUserProfileSchema = z.object({
+  provider_id: z.string().min(1),
+}).passthrough();
 const unipileMessageEventSchema = z.object({
   event: z.string(),
   account_id: z.string().min(1),
@@ -175,6 +179,7 @@ export const InboxContract = {
     hostedLinkSchema: unipileHostedLinkSchema,
     sendResponseSchema: unipileSendResponseSchema,
     accountSchema: unipileAccountSchema,
+    userProfileSchema: unipileUserProfileSchema,
     messageEventSchema: unipileMessageEventSchema,
     accountStatusSchema: unipileAccountStatusSchema,
     webhookListSchema: unipileWebhookListSchema,

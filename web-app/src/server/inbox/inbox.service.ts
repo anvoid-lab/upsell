@@ -21,6 +21,7 @@ type ChannelRow = {
   business_id: string;
   provider: string;
   provider_account_id: string | null;
+  provider_identity_id: string | null;
 };
 
 function appUrl() {
@@ -62,7 +63,7 @@ export class InboxService implements InboxProvider {
     const supabase = await createSupabaseServerClient();
     const { data: existingChannel, error } = await supabase
       .from("channels")
-      .select("id, business_id, provider, provider_account_id")
+      .select("id, business_id, provider, provider_account_id, provider_identity_id")
       .eq("business_id", businessId)
       .eq("platform", channel)
       .eq("provider", this.name)
@@ -81,7 +82,7 @@ export class InboxService implements InboxProvider {
           connected: false,
           connection_status: "connecting",
         })
-        .select("id, business_id, provider, provider_account_id")
+        .select("id, business_id, provider, provider_account_id, provider_identity_id")
         .single();
       if (createError) throw createError;
       row = created as ChannelRow;
@@ -125,7 +126,7 @@ export class InboxService implements InboxProvider {
     const supabase = createSupabaseServiceClient();
     const { data: channel, error } = await supabase
       .from("channels")
-      .select("id")
+      .select("id, provider_identity_id")
       .eq("business_id", state.businessId)
       .eq("id", state.channelId)
       .eq("platform", state.channel)
@@ -133,9 +134,18 @@ export class InboxService implements InboxProvider {
       .is("deleted_at", null)
       .single();
     if (error || !channel) throw error ?? new Error("Channel not found.");
+    if (channel.provider_identity_id && channel.provider_identity_id !== account.providerIdentityId) {
+      const { error: mismatchError } = await supabase.from("channels").update({
+        connection_status: "error",
+        connected: false,
+      }).eq("id", channel.id).eq("business_id", state.businessId);
+      if (mismatchError) throw mismatchError;
+      return;
+    }
     const connected = account.status === "connected" || account.status === "syncing";
     const { error: updateError } = await supabase.from("channels").update({
       provider_account_id: account.id,
+      provider_identity_id: account.providerIdentityId,
       account_name: account.name,
       provider_metadata: account.metadata,
       connection_status: account.status,
@@ -162,7 +172,7 @@ export class InboxService implements InboxProvider {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
       .from("channels")
-      .select("id, provider, provider_account_id")
+      .select("id, provider, provider_account_id, provider_identity_id")
       .eq("provider", this.name)
       .eq("business_id", businessId)
       .eq("platform", channel)
@@ -170,11 +180,20 @@ export class InboxService implements InboxProvider {
       .maybeSingle();
     if (error) throw error;
     if (!data) return;
+    let providerIdentityId = data.provider_identity_id;
     if (data.provider_account_id) {
+      try {
+        const account = await this.provider.getAccount(data.provider_account_id);
+        providerIdentityId = account.providerIdentityId;
+      } catch {
+        // A provider account that already lost its session may not expose its
+        // owner profile anymore. Disconnection must still remain possible.
+      }
       await this.provider.disconnectAccount(data.provider_account_id);
     }
     const { error: updateError } = await supabase.from("channels").update({
       provider_account_id: null,
+      provider_identity_id: providerIdentityId,
       provider_metadata: {},
       account_name: null,
       connected: false,
