@@ -1,8 +1,17 @@
 import "server-only";
 
 import { createSupabaseServerClient, createSupabaseServiceClient } from "@db/client";
-import { InboxContract } from "@core/contracts/inbox.contract";
-import type { InboxProvider, InboxProviderName, HostedAuthRequest, ProviderEvent, ProviderMessageEvent, InboxConnectionStatus, InboxChannel } from "@core/contracts/inbox.contract";
+import {
+  DEFAULT_INBOX_CHANNEL,
+  InboxContract,
+  type HostedAuthRequest,
+  type InboxChannel,
+  type InboxConnectionStatus,
+  type InboxProvider,
+  type InboxProviderName,
+  type ProviderEvent,
+  type ProviderMessageEvent,
+} from "@core/contracts/inbox.contract";
 import { UnipileInboxProvider } from "./providers/unipile";
 import { createHostedAuthState, verifyHostedAuthState } from "./hosted-auth-state";
 import { inboxSyncService } from "./sync.service";
@@ -48,7 +57,7 @@ export class InboxService implements InboxProvider {
   }
 
   get name(): InboxProviderName { return this.provider.name; }
-  async connect(channel: InboxChannel = "whatsapp"): Promise<string> {
+  async connect(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<string> {
     const businessId = await authenticatedBusinessId();
     const supabase = await createSupabaseServerClient();
     const { data: existingChannel, error } = await supabase
@@ -136,7 +145,7 @@ export class InboxService implements InboxProvider {
     if (updateError) throw updateError;
   }
 
-  async syncHistory(channel: InboxChannel = "whatsapp"): Promise<void> {
+  async syncHistory(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<void> {
     const businessId = await authenticatedBusinessId();
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.from("channels")
@@ -148,7 +157,7 @@ export class InboxService implements InboxProvider {
     await inboxSyncService.syncAccount(this.provider, data.provider_account_id, channel);
   }
 
-  async disconnect(channel: InboxChannel = "whatsapp"): Promise<void> {
+  async disconnect(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<void> {
     const businessId = await authenticatedBusinessId();
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
@@ -175,7 +184,7 @@ export class InboxService implements InboxProvider {
     if (updateError) throw updateError;
   }
 
-  async connectionStatus(channel: InboxChannel = "whatsapp"): Promise<InboxConnectionStatus> {
+  async connectionStatus(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<InboxConnectionStatus> {
     const businessId = await authenticatedBusinessId();
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.from("channels")
@@ -293,8 +302,24 @@ export class InboxService implements InboxProvider {
         })
         .select("id")
         .single();
-      if (createError) throw createError;
-      conversation = created;
+      if (createError?.code === "23505") {
+        // Two first-message deliveries can race before either request sees a
+        // conversation. Reuse the row created by the winning request.
+        const raced = await supabase
+          .from("conversations")
+          .select("id")
+          .eq("channel_id", channelId)
+          .eq("channel_conversation_id", event.externalChatId)
+          .eq("business_id", businessId)
+          .is("deleted_at", null)
+          .single();
+        if (raced.error || !raced.data) throw raced.error ?? createError;
+        conversation = raced.data;
+      } else if (createError) {
+        throw createError;
+      } else {
+        conversation = created;
+      }
     }
 
     const { error: insertError } = await supabase.from("messages").insert({

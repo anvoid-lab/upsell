@@ -117,8 +117,8 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
               variant="ghost"
               size="icon"
               className="w-7 h-7 rounded-full"
-              aria-label="Connect WhatsApp"
-              title="Connect WhatsApp"
+              aria-label="Connect Instagram"
+              title="Connect Instagram"
               onClick={onConnect}
             >
               <Settings className="w-3.5 h-3.5 text-neutral-400" />

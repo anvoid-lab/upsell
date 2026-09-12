@@ -60,8 +60,8 @@ describe("InboxService integration", () => {
     expect(register).toHaveBeenCalledWith("https://example.test/inbox/webhooks/channel");
     const input = create.mock.calls[0][0];
     expect(input.notifyUrl).toBe("https://example.test/inbox/webhooks/channel?event=connection");
-    expect(input.channel).toBe("whatsapp");
-    expect(input.successRedirectUrl).toBe("https://example.test/inbox/integration?channel=whatsapp&result=success");
+    expect(input.channel).toBe("instagram");
+    expect(input.successRedirectUrl).toBe("https://example.test/inbox/integration?channel=instagram&result=success");
     expect(await verifyHostedAuthState(input.state)).toMatchObject({
       businessId: mocks.row.business_id, channelId: mocks.row.id, provider: "unipile",
     });
@@ -102,6 +102,23 @@ describe("InboxService integration", () => {
     expect(mocks.sync).not.toHaveBeenCalled();
   });
 
+  it("rejects a callback when the provider account belongs to another channel", async () => {
+    vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
+      id: "account-1", channel: "whatsapp", name: "Store", status: "connected", metadata: {},
+    });
+    const name = await createHostedAuthState(
+      mocks.row.business_id,
+      mocks.row.id,
+      "unipile",
+      "instagram",
+    );
+
+    await expect(new InboxService().receiveConnectionStatus({
+      status: "CREATION_SUCCESS", account_id: "account-1", name,
+    })).rejects.toThrow("Invalid account channel");
+    expect(mocks.serviceClient).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid callback state before contacting the provider", async () => {
     const account = vi.spyOn(UnipileInboxProvider.prototype, "getAccount");
     await expect(new InboxService().receiveConnectionStatus({
@@ -122,6 +139,6 @@ describe("InboxService integration", () => {
 
   it("passes the selected provider to history import after authorization", async () => {
     await new InboxService().syncHistory();
-    expect(mocks.sync).toHaveBeenCalledWith(expect.any(UnipileInboxProvider), "account-1", "whatsapp");
+    expect(mocks.sync).toHaveBeenCalledWith(expect.any(UnipileInboxProvider), "account-1", "instagram");
   });
 });

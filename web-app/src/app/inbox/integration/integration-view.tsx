@@ -6,7 +6,7 @@ import { CheckCircle2, Instagram, Loader2, MessageCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useIntegration } from "./integration.hook";
-import type { InboxChannel } from "@core/contracts/inbox.contract";
+import { DEFAULT_INBOX_CHANNEL, type InboxChannel } from "@core/contracts/inbox.contract";
 
 const CHANNEL_DETAILS = {
   whatsapp: {
@@ -22,7 +22,7 @@ const CHANNEL_DETAILS = {
 } as const;
 
 export function IntegrationView({
-  channel = "whatsapp",
+  channel = DEFAULT_INBOX_CHANNEL,
   onClose,
   result,
 }: {

@@ -34,6 +34,29 @@ describe("Unipile inbox provider", () => {
     expect(payload).not.toHaveProperty("proxy");
   });
 
+  it("creates an Instagram reconnect link for an existing provider account", async () => {
+    vi.stubEnv("UNIPILE_API_URL", "https://api.example.test");
+    vi.stubEnv("UNIPILE_API_KEY", "api-key");
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ url: "https://account.example.test/reconnect" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new UnipileInboxProvider().createHostedAuthLink({
+      channel: "instagram",
+      state: "signed-state",
+      reconnectAccountId: "instagram-account",
+      notifyUrl: "https://app.example.test/inbox/webhooks/channel?event=connection",
+      successRedirectUrl: "https://app.example.test/inbox/integration?channel=instagram&result=success",
+      failureRedirectUrl: "https://app.example.test/inbox/integration?channel=instagram&result=error",
+    });
+
+    const payload = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(payload).toMatchObject({
+      type: "reconnect",
+      reconnect_account: "instagram-account",
+    });
+    expect(payload).not.toHaveProperty("providers");
+  });
+
   it("normalizes an inbound WhatsApp message", () => {
     const event = new UnipileInboxProvider().parseWebhook({
       event: "message_received",
@@ -75,6 +98,23 @@ describe("Unipile inbox provider", () => {
       channel: "instagram",
       providerAccountId: "instagram-account",
       direction: "in",
+    });
+  });
+
+  it("maps expired Instagram credentials to reconnect required", () => {
+    const event = new UnipileInboxProvider().parseWebhook({
+      AccountStatus: {
+        account_id: "instagram-account",
+        account_type: "INSTAGRAM",
+        message: "CREDENTIALS",
+      },
+    });
+
+    expect(event).toMatchObject({
+      type: "account_status",
+      channel: "instagram",
+      providerAccountId: "instagram-account",
+      status: "reconnect_required",
     });
   });
 

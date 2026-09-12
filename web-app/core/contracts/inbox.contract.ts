@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export type InboxChannel = "whatsapp" | "instagram";
 export type InboxProviderName = "unipile";
+export const DEFAULT_INBOX_CHANNEL: InboxChannel = "instagram";
 export type InboxConnectionStatus =
   | "disconnected"
   | "connecting"
