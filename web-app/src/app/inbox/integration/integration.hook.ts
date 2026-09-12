@@ -5,7 +5,10 @@ import { cancelIntegrationAction, startIntegrationAction, integrationStatusActio
 import type { InboxChannel } from "@core/contracts/inbox.contract";
 
 export const INBOX_INTEGRATION_POPUP_NAME = "inbox-channel-integration";
+export const INBOX_INTEGRATION_SAME_TAB_KEY = "inbox-integration-same-tab";
 export const integrationSuccessKey = (channel: InboxChannel) => `inbox-integration-success:${channel}`;
+export const INBOX_INTEGRATION_SUCCESS = "INBOX_INTEGRATION_SUCCESS";
+export const INBOX_INTEGRATION_CANCELLED = "INBOX_INTEGRATION_CANCELLED";
 
 export function useIntegration(channel: InboxChannel, result?: string) {
   const [status, setStatus] = useState(result === "error" ? "error" : result === "success" ? "waiting" : "ready");
@@ -14,6 +17,7 @@ export function useIntegration(channel: InboxChannel, result?: string) {
   const mounted = useRef(true);
   const starting = useRef(false);
   const popup = useRef<Window | null>(null);
+  const popupCompleted = useRef(false);
   const [activeChannel, setActiveChannel] = useState(channel);
 
   useEffect(() => {
@@ -24,6 +28,34 @@ export function useIntegration(channel: InboxChannel, result?: string) {
       popup.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    async function handlePopupMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin || event.source !== popup.current) return;
+      if (event.data?.channel !== activeChannel) return;
+      if (event.data?.type !== INBOX_INTEGRATION_SUCCESS
+        && event.data?.type !== INBOX_INTEGRATION_CANCELLED) return;
+
+      popupCompleted.current = true;
+      popup.current?.close();
+      popup.current = null;
+
+      if (event.data.type === INBOX_INTEGRATION_SUCCESS) {
+        setStatus("syncing");
+        return;
+      }
+
+      try {
+        await cancelIntegrationAction(activeChannel);
+      } catch {
+        // The next server refresh will reconcile a failed cancellation.
+      }
+      if (mounted.current) setStatus("popup_closed");
+    }
+
+    window.addEventListener("message", handlePopupMessage);
+    return () => window.removeEventListener("message", handlePopupMessage);
+  }, [activeChannel]);
 
   useEffect(() => {
     if (status !== "waiting" && status !== "syncing") return;
@@ -64,7 +96,8 @@ export function useIntegration(channel: InboxChannel, result?: string) {
     const timer = window.setInterval(async () => {
       if (popup.current === openedPopup && openedPopup.closed) {
         popup.current = null;
-        const authenticationCompleted = window.localStorage.getItem(integrationSuccessKey(activeChannel)) === "true";
+        const authenticationCompleted = popupCompleted.current
+          || window.localStorage.getItem(integrationSuccessKey(activeChannel)) === "true";
         window.localStorage.removeItem(integrationSuccessKey(activeChannel));
         if (!authenticationCompleted) {
           try {
@@ -102,26 +135,41 @@ export function useIntegration(channel: InboxChannel, result?: string) {
     setError(null);
     setUrl(null);
     setStatus("preparing");
+
+    popupCompleted.current = false;
     window.localStorage.removeItem(integrationSuccessKey(selectedChannel));
+    window.sessionStorage.removeItem(INBOX_INTEGRATION_SAME_TAB_KEY);
     // Open during the user gesture, before awaiting the server action.
     const width = 520;
     const height = 760;
     const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
     const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+
     popup.current = window.open(
       "about:blank",
       INBOX_INTEGRATION_POPUP_NAME,
       `popup=yes,width=${width},height=${height},left=${left},top=${top}`,
     );
-    if (popup.current) popup.current.opener = null;
+
+    if (!popup.current) {
+      setError("The authentication popup was blocked. Please allow popups and try again.");
+      setStatus("error");
+      starting.current = false;
+      return;
+    }
+
     try {
       const link = await startIntegrationAction(selectedChannel);
+
       if (!mounted.current) {
         popup.current?.close();
         return;
       }
+
       setUrl(link);
+
       if (popup.current && !popup.current.closed) popup.current.location.replace(link);
+
       setStatus("waiting");
     } catch {
       popup.current?.close();

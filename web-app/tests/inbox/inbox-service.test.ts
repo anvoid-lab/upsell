@@ -62,7 +62,7 @@ describe("InboxService integration", () => {
     const input = create.mock.calls[0][0];
     expect(input.notifyUrl).toBe("https://example.test/inbox/webhooks/channel?event=connection");
     expect(input.channel).toBe("instagram");
-    expect(input.successRedirectUrl).toBe("https://example.test/inbox/integration?channel=instagram&result=success");
+    expect(input.successRedirectUrl).toBe("https://example.test/inbox/integration?channel=instagram&popup=true&result=success");
     expect(await verifyHostedAuthState(input.state)).toMatchObject({
       businessId: mocks.row.business_id, channelId: mocks.row.id, provider: "unipile",
     });

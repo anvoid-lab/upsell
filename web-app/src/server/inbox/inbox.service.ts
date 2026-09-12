@@ -97,7 +97,7 @@ export class InboxService implements InboxProvider {
     if (row.business_id !== businessId) throw new Error("Account does not belong to the authenticated business.");
     const state = await createHostedAuthState(businessId, row.id, this.name, channel);
     const base = appUrl();
-    const integrationUrl = `${base}/inbox/integration?channel=${encodeURIComponent(channel)}`;
+    const integrationUrl = `${base}/inbox/integration?channel=${encodeURIComponent(channel)}&popup=true`;
     const provider = this.provider;
     try {
       await provider.ensureWebhooks(`${base}/inbox/webhooks/channel`);

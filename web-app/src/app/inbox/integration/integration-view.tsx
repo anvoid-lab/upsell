@@ -5,7 +5,14 @@ import { useCallback, useEffect } from "react";
 import { CheckCircle2, Instagram, Loader2, MessageCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { INBOX_INTEGRATION_POPUP_NAME, integrationSuccessKey, useIntegration } from "./integration.hook";
+import {
+  INBOX_INTEGRATION_CANCELLED,
+  INBOX_INTEGRATION_POPUP_NAME,
+  INBOX_INTEGRATION_SAME_TAB_KEY,
+  INBOX_INTEGRATION_SUCCESS,
+  integrationSuccessKey,
+  useIntegration,
+} from "./integration.hook";
 import { DEFAULT_INBOX_CHANNEL, type InboxChannel } from "@core/contracts/inbox.contract";
 
 const CHANNEL_DETAILS = {
@@ -25,23 +32,43 @@ export function IntegrationView({
   channel = DEFAULT_INBOX_CHANNEL,
   onClose,
   result,
+  popupReturn = false,
 }: {
   channel?: InboxChannel;
   onClose?: () => void;
   result?: string;
+  popupReturn?: boolean;
 }) {
   const router = useRouter();
   const details = CHANNEL_DETAILS[channel];
   const { status, error, url, start } = useIntegration(channel, result);
   const Icon = details.Icon;
   useEffect(() => {
+    const continuedInSameTab = window.sessionStorage.getItem(INBOX_INTEGRATION_SAME_TAB_KEY) === "true";
+    if (!popupReturn || continuedInSameTab) return;
+
     // Hosted Auth has finished; the opening window continues polling until
     // the server confirms the account identity and connection.
-    if (result === "success" && window.name === INBOX_INTEGRATION_POPUP_NAME) {
+    if (result === "success") {
       window.localStorage.setItem(integrationSuccessKey(channel), "true");
+      window.opener?.postMessage(
+        { type: INBOX_INTEGRATION_SUCCESS, channel },
+        window.location.origin,
+      );
+      window.close();
+      return;
+    }
+
+    // The provider sends its cancel/failure action to our failure redirect.
+    // Closing here lets the opening window restore the initial state.
+    if (result === "error") {
+      window.opener?.postMessage(
+        { type: INBOX_INTEGRATION_CANCELLED, channel },
+        window.location.origin,
+      );
       window.close();
     }
-  }, [channel, result]);
+  }, [channel, popupReturn, result]);
   useEffect(() => {
     if (status === "connected") router.refresh();
   }, [status, router]);
@@ -86,7 +113,10 @@ export function IntegrationView({
         {url && (status === "waiting" || status === "syncing") && (
           <div className="space-y-2 text-center">
             <p className="text-xs text-zinc-500">If the authentication window did not open:</p>
-            <Button variant="outline" onClick={() => window.location.assign(url)}>Continue in this tab</Button>
+            <Button variant="outline" onClick={() => {
+              window.sessionStorage.setItem(INBOX_INTEGRATION_SAME_TAB_KEY, "true");
+              window.location.assign(url);
+            }}>Continue in this tab</Button>
           </div>
         )}
         {status === "connected" && <Button onClick={close}>Done</Button>}
