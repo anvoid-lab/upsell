@@ -200,18 +200,21 @@ export class UnipileInboxProvider implements InboxProvider {
     const raw = InboxContract.unipile.accountSchema.parse(await request(`/accounts/${encodeURIComponent(accountId)}`));
     const channel = parseChannel(raw.type);
     if (!channel) throw new Error("The connected account uses an unsupported channel.");
-    const profileQuery = new URLSearchParams({ account_id: accountId });
-    const profile = InboxContract.unipile.userProfileSchema.parse(
-      await request(`/users/me?${profileQuery}`),
-    );
     return {
       id: raw.id,
-      providerIdentityId: profile.provider_id,
       channel,
       name: raw.name ?? raw.identifier ?? null,
       status: sourcesStatus(raw.sources?.map((source) => source.status) ?? []),
       metadata: raw,
     };
+  }
+
+  async getAccountIdentity(accountId: string): Promise<string> {
+    const query = new URLSearchParams({ account_id: accountId });
+    const profile = InboxContract.unipile.userProfileSchema.parse(
+      await request(`/users/me?${query}`),
+    );
+    return profile.provider_id;
   }
 
   async disconnectAccount(accountId: string): Promise<void> {

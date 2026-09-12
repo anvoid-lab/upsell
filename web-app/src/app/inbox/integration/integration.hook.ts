@@ -65,7 +65,15 @@ export function useIntegration(channel: InboxChannel, result?: string) {
         popup.current = null;
         try {
           const current = await integrationStatusAction(activeChannel);
-          setStatus(current === "connected" ? "connected" : "popup_closed");
+          if (current === "connected") {
+            setStatus("connected");
+          } else if (current === "connecting" || current === "syncing") {
+            // Hosted Auth may close before the provider owner identity is
+            // available. Keep polling until the server validates it.
+            setStatus("syncing");
+          } else {
+            setStatus("popup_closed");
+          }
         } catch {
           setStatus("popup_closed");
         }

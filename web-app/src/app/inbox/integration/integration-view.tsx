@@ -35,6 +35,13 @@ export function IntegrationView({
   const { status, error, url, start } = useIntegration(channel, result);
   const Icon = details.Icon;
   useEffect(() => {
+    // Hosted Auth has finished; the opening window continues polling until
+    // the server confirms the account identity and connection.
+    if (result === "success" && window.name === INBOX_INTEGRATION_POPUP_NAME) {
+      window.close();
+    }
+  }, [result]);
+  useEffect(() => {
     if (status === "connected") router.refresh();
   }, [status, router]);
   const close = useCallback(() => {

@@ -89,9 +89,10 @@ describe("InboxService integration", () => {
 
   it("binds the callback to the signed channel and ignores a supplied business ID", async () => {
     vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
-      id: "account-1", providerIdentityId: "instagram-user-1", channel: "whatsapp",
+      id: "account-1", channel: "whatsapp",
       name: "Store", status: "connected", metadata: {},
     });
+    vi.spyOn(UnipileInboxProvider.prototype, "getAccountIdentity").mockResolvedValue("instagram-user-1");
     const register = vi.spyOn(UnipileInboxProvider.prototype, "ensureWebhooks");
     const name = await createHostedAuthState(mocks.row.business_id, mocks.row.id, "unipile", "whatsapp");
     await new InboxService().receiveConnectionStatus({
@@ -109,7 +110,7 @@ describe("InboxService integration", () => {
 
   it("rejects a callback when the provider account belongs to another channel", async () => {
     vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
-      id: "account-1", providerIdentityId: "whatsapp-user-1", channel: "whatsapp",
+      id: "account-1", channel: "whatsapp",
       name: "Store", status: "connected", metadata: {},
     });
     const name = await createHostedAuthState(
@@ -135,10 +136,7 @@ describe("InboxService integration", () => {
   });
 
   it("disconnects the provider account while preserving its stable identity", async () => {
-    vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
-      id: "account-1", providerIdentityId: "instagram-user-1", channel: "instagram",
-      name: "Store", status: "connected", metadata: {},
-    });
+    vi.spyOn(UnipileInboxProvider.prototype, "getAccountIdentity").mockResolvedValue("instagram-user-1");
     const disconnect = vi.spyOn(UnipileInboxProvider.prototype, "disconnectAccount").mockResolvedValue();
     await new InboxService().disconnect();
     expect(disconnect).toHaveBeenCalledWith("account-1");
@@ -150,9 +148,10 @@ describe("InboxService integration", () => {
 
   it("rejects a new provider identity from inheriting an existing channel history", async () => {
     vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
-      id: "account-2", providerIdentityId: "another-instagram-user", channel: "instagram",
+      id: "account-2", channel: "instagram",
       name: "Other Store", status: "connected", metadata: {},
     });
+    vi.spyOn(UnipileInboxProvider.prototype, "getAccountIdentity").mockResolvedValue("another-instagram-user");
     const name = await createHostedAuthState(
       mocks.row.business_id,
       mocks.row.id,
@@ -167,8 +166,34 @@ describe("InboxService integration", () => {
     expect(mocks.writes).toHaveBeenCalledWith("channels", expect.objectContaining({
       connection_status: "error", connected: false,
     }));
-    expect(mocks.writes).not.toHaveBeenCalledWith("channels", expect.objectContaining({
+    expect(mocks.writes).toHaveBeenCalledWith("channels", expect.objectContaining({
       provider_account_id: "account-2",
+    }));
+  });
+
+  it("persists the provider account before identity enrichment is available", async () => {
+    vi.spyOn(UnipileInboxProvider.prototype, "getAccount").mockResolvedValue({
+      id: "account-1", channel: "instagram", name: "Store",
+      status: "connected", metadata: {},
+    });
+    vi.spyOn(UnipileInboxProvider.prototype, "getAccountIdentity").mockRejectedValue(
+      new Error("Profile is still synchronizing"),
+    );
+    const name = await createHostedAuthState(
+      mocks.row.business_id,
+      mocks.row.id,
+      "unipile",
+      "instagram",
+    );
+
+    await new InboxService().receiveConnectionStatus({
+      status: "CREATION_SUCCESS", account_id: "account-1", name,
+    });
+
+    expect(mocks.writes).toHaveBeenCalledWith("channels", expect.objectContaining({
+      provider_account_id: "account-1",
+      connection_status: "syncing",
+      connected: false,
     }));
   });
 

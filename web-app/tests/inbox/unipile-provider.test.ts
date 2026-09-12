@@ -70,9 +70,12 @@ describe("Unipile inbox provider", () => {
       }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const account = await new UnipileInboxProvider().getAccount("unipile-account");
+    const provider = new UnipileInboxProvider();
+    const account = await provider.getAccount("unipile-account");
+    const identity = await provider.getAccountIdentity("unipile-account");
 
-    expect(account.providerIdentityId).toBe("instagram-user-1");
+    expect(account.id).toBe("unipile-account");
+    expect(identity).toBe("instagram-user-1");
     expect(fetchMock.mock.calls[1][0]).toContain("/users/me?account_id=unipile-account");
   });
 

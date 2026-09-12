@@ -4,17 +4,30 @@ const { database, writes, filters, account } = vi.hoisted(() => ({
   database: vi.fn(),
   writes: vi.fn(),
   filters: vi.fn(),
-  account: { value: { id: "channel-1", business_id: "business-1" } as object | null },
+  account: {
+    value: {
+      id: "channel-1",
+      business_id: "business-1",
+      provider_identity_id: "provider-user-1",
+      connection_status: "connected",
+    } as object | null,
+  },
 }));
 vi.mock("@db/client", () => ({ createSupabaseServiceClient: database }));
 
 import { InboxService } from "../../src/server/inbox/inbox.service";
+import { UnipileInboxProvider } from "../../src/server/inbox/providers/unipile";
 import { POST } from "../../src/app/inbox/webhooks/channel/route";
 
 describe("unified inbox webhooks", () => {
   beforeEach(() => {
     vi.stubEnv("UNIPILE_WEBHOOK_SECRET", "test-webhook-secret");
-    account.value = { id: "channel-1", business_id: "business-1" };
+    account.value = {
+      id: "channel-1",
+      business_id: "business-1",
+      provider_identity_id: "provider-user-1",
+      connection_status: "connected",
+    };
     vi.clearAllMocks();
     database.mockImplementation(() => ({
       from(table: string) {
@@ -48,6 +61,7 @@ describe("unified inbox webhooks", () => {
     expect(filters).toHaveBeenCalledWith("business_id", "business-1");
     expect(filters).not.toHaveBeenCalledWith("business_id", "forged-business");
     expect(writes).toHaveBeenCalledWith("channels", {
+      provider_identity_id: "provider-user-1",
       connection_status: "reconnect_required", connected: false,
     });
   });
@@ -59,7 +73,31 @@ describe("unified inbox webhooks", () => {
     });
     expect(filters).toHaveBeenCalledWith("platform", "instagram");
     expect(writes).toHaveBeenCalledWith("channels", {
+      provider_identity_id: "provider-user-1",
       connection_status: "connected", connected: true,
+    });
+  });
+
+  it("validates the provider identity before completing a pending connection", async () => {
+    account.value = {
+      id: "channel-1",
+      business_id: "business-1",
+      provider_identity_id: "provider-user-1",
+      connection_status: "syncing",
+    };
+    const identity = vi.spyOn(UnipileInboxProvider.prototype, "getAccountIdentity")
+      .mockResolvedValue("provider-user-1");
+
+    await new InboxService().receiveWebhook(
+      new Headers({ "Unipile-Auth": "test-webhook-secret" }),
+      { AccountStatus: { account_id: "instagram-account", account_type: "INSTAGRAM", message: "OK" } },
+    );
+
+    expect(identity).toHaveBeenCalledWith("instagram-account");
+    expect(writes).toHaveBeenCalledWith("channels", {
+      provider_identity_id: "provider-user-1",
+      connection_status: "connected",
+      connected: true,
     });
   });
 

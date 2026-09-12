@@ -134,7 +134,19 @@ export class InboxService implements InboxProvider {
       .is("deleted_at", null)
       .single();
     if (error || !channel) throw error ?? new Error("Channel not found.");
-    if (channel.provider_identity_id && channel.provider_identity_id !== account.providerIdentityId) {
+    const connected = account.status === "connected" || account.status === "syncing";
+    const { error: accountUpdateError } = await supabase.from("channels").update({
+      provider_account_id: account.id,
+      account_name: account.name,
+      provider_metadata: account.metadata,
+      connection_status: "syncing",
+      connected: false,
+    }).eq("id", channel.id).eq("business_id", state.businessId);
+    if (accountUpdateError) throw accountUpdateError;
+
+    const providerIdentityId = await this.resolveProviderIdentity(account.id);
+    if (!providerIdentityId) return;
+    if (channel.provider_identity_id && channel.provider_identity_id !== providerIdentityId) {
       const { error: mismatchError } = await supabase.from("channels").update({
         connection_status: "error",
         connected: false,
@@ -142,12 +154,8 @@ export class InboxService implements InboxProvider {
       if (mismatchError) throw mismatchError;
       return;
     }
-    const connected = account.status === "connected" || account.status === "syncing";
     const { error: updateError } = await supabase.from("channels").update({
-      provider_account_id: account.id,
-      provider_identity_id: account.providerIdentityId,
-      account_name: account.name,
-      provider_metadata: account.metadata,
+      provider_identity_id: providerIdentityId,
       connection_status: account.status,
       connected,
       connected_at: connected ? new Date().toISOString() : null,
@@ -183,8 +191,7 @@ export class InboxService implements InboxProvider {
     let providerIdentityId = data.provider_identity_id;
     if (data.provider_account_id) {
       try {
-        const account = await this.provider.getAccount(data.provider_account_id);
-        providerIdentityId = account.providerIdentityId;
+        providerIdentityId = await this.provider.getAccountIdentity(data.provider_account_id);
       } catch {
         // A provider account that already lost its session may not expose its
         // owner profile anymore. Disconnection must still remain possible.
@@ -260,7 +267,7 @@ export class InboxService implements InboxProvider {
     const supabase = createSupabaseServiceClient();
     const { data: channel, error: channelError } = await supabase
       .from("channels")
-      .select("id, business_id")
+      .select("id, business_id, provider_identity_id, connection_status")
       .eq("provider", providerName)
       .eq("provider_account_id", event.providerAccountId)
       .eq("platform", event.channel)
@@ -270,8 +277,24 @@ export class InboxService implements InboxProvider {
     if (!channel) throw new Error("Webhook account is not associated with a business.");
 
     if (event.type === "account_status") {
+      const identityPending = !channel.provider_identity_id
+        || channel.connection_status === "connecting"
+        || channel.connection_status === "syncing";
+      const providerIdentityId = identityPending
+        ? await this.resolveProviderIdentity(event.providerAccountId)
+        : channel.provider_identity_id;
+      if (!providerIdentityId) return "accepted" as const;
+      if (channel.provider_identity_id && channel.provider_identity_id !== providerIdentityId) {
+        const { error } = await supabase.from("channels").update({
+          connection_status: "error",
+          connected: false,
+        }).eq("id", channel.id).eq("business_id", channel.business_id);
+        if (error) throw error;
+        return "ignored" as const;
+      }
       const connected = event.status === "connected" || event.status === "syncing";
       const { error } = await supabase.from("channels").update({
+        provider_identity_id: providerIdentityId,
         connection_status: event.status,
         connected,
       }).eq("id", channel.id).eq("business_id", channel.business_id);
@@ -280,6 +303,17 @@ export class InboxService implements InboxProvider {
     }
 
     return this.persistMessage(channel.id as string, channel.business_id as string, event);
+  }
+
+  private async resolveProviderIdentity(accountId: string): Promise<string | null> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await this.provider.getAccountIdentity(accountId);
+      } catch {
+        if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+    return null;
   }
 
   private async persistMessage(channelId: string, businessId: string, event: ProviderMessageEvent) {
@@ -410,6 +444,7 @@ export class InboxService implements InboxProvider {
   listMessages(chatId: string) { return this.provider.listMessages(chatId); }
   createHostedAuthLink(input: HostedAuthRequest) { return this.provider.createHostedAuthLink(input); }
   getAccount(accountId: string) { return this.provider.getAccount(accountId); }
+  getAccountIdentity(accountId: string) { return this.provider.getAccountIdentity(accountId); }
   disconnectAccount(accountId: string) { return this.provider.disconnectAccount(accountId); }
   sendMessage(input: Parameters<InboxProvider["sendMessage"]>[0]) { return this.provider.sendMessage(input); }
   markChatRead(input: Parameters<InboxProvider["markChatRead"]>[0]) { return this.provider.markChatRead(input); }

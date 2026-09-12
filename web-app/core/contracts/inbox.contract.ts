@@ -22,7 +22,6 @@ export type HostedAuthRequest = {
 
 export type ProviderAccount = {
   id: string;
-  providerIdentityId: string;
   channel: InboxChannel;
   name: string | null;
   status: InboxConnectionStatus;
@@ -72,6 +71,7 @@ export interface InboxProvider {
   listMessages(externalChatId: string): Promise<ProviderStoredMessage[]>;
   createHostedAuthLink(request: HostedAuthRequest): Promise<string>;
   getAccount(accountId: string): Promise<ProviderAccount>;
+  getAccountIdentity(accountId: string): Promise<string>;
   disconnectAccount(accountId: string): Promise<void>;
   sendMessage(input: {
     accountId: string;
