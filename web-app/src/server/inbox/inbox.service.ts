@@ -221,6 +221,20 @@ export class InboxService implements InboxProvider {
     return InboxContract.connectionStatusSchema.parse(data?.connection_status ?? "disconnected");
   }
 
+  async cancelConnection(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<void> {
+    const businessId = await authenticatedBusinessId();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase
+      .from("channels")
+      .update({ connection_status: "disconnected", connected: false })
+      .eq("business_id", businessId)
+      .eq("platform", channel)
+      .eq("provider", this.name)
+      .eq("connection_status", "connecting")
+      .is("deleted_at", null);
+    if (error) throw error;
+  }
+
   receiveWebhook(headers: Headers, payload: unknown) {
     if (!this.verifyWebhook(headers)) throw new Error("Webhook authentication failed.");
     const event = this.parseWebhook(payload);

@@ -5,7 +5,7 @@ import { useCallback, useEffect } from "react";
 import { CheckCircle2, Instagram, Loader2, MessageCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { INBOX_INTEGRATION_POPUP_NAME, useIntegration } from "./integration.hook";
+import { INBOX_INTEGRATION_POPUP_NAME, integrationSuccessKey, useIntegration } from "./integration.hook";
 import { DEFAULT_INBOX_CHANNEL, type InboxChannel } from "@core/contracts/inbox.contract";
 
 const CHANNEL_DETAILS = {
@@ -38,9 +38,10 @@ export function IntegrationView({
     // Hosted Auth has finished; the opening window continues polling until
     // the server confirms the account identity and connection.
     if (result === "success" && window.name === INBOX_INTEGRATION_POPUP_NAME) {
+      window.localStorage.setItem(integrationSuccessKey(channel), "true");
       window.close();
     }
-  }, [result]);
+  }, [channel, result]);
   useEffect(() => {
     if (status === "connected") router.refresh();
   }, [status, router]);

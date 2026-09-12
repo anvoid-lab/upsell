@@ -10,3 +10,7 @@ export async function startIntegrationAction(channel: unknown) {
 export async function integrationStatusAction(channel: unknown) {
   return new InboxService().connectionStatus(InboxContract.channelSchema.parse(channel));
 }
+
+export async function cancelIntegrationAction(channel: unknown) {
+  return new InboxService().cancelConnection(InboxContract.channelSchema.parse(channel));
+}

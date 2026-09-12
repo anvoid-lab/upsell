@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { startIntegrationAction, integrationStatusAction } from "./actions";
+import { cancelIntegrationAction, startIntegrationAction, integrationStatusAction } from "./actions";
 import type { InboxChannel } from "@core/contracts/inbox.contract";
 
 export const INBOX_INTEGRATION_POPUP_NAME = "inbox-channel-integration";
+export const integrationSuccessKey = (channel: InboxChannel) => `inbox-integration-success:${channel}`;
 
 export function useIntegration(channel: InboxChannel, result?: string) {
   const [status, setStatus] = useState(result === "error" ? "error" : result === "success" ? "waiting" : "ready");
@@ -63,6 +64,18 @@ export function useIntegration(channel: InboxChannel, result?: string) {
     const timer = window.setInterval(async () => {
       if (popup.current === openedPopup && openedPopup.closed) {
         popup.current = null;
+        const authenticationCompleted = window.localStorage.getItem(integrationSuccessKey(activeChannel)) === "true";
+        window.localStorage.removeItem(integrationSuccessKey(activeChannel));
+        if (!authenticationCompleted) {
+          try {
+            await cancelIntegrationAction(activeChannel);
+          } catch {
+            // The local flow must still leave its loading state. A later status
+            // refresh can reconcile a failed cancellation with the server.
+          }
+          setStatus("popup_closed");
+          return;
+        }
         try {
           const current = await integrationStatusAction(activeChannel);
           if (current === "connected") {
@@ -89,6 +102,7 @@ export function useIntegration(channel: InboxChannel, result?: string) {
     setError(null);
     setUrl(null);
     setStatus("preparing");
+    window.localStorage.removeItem(integrationSuccessKey(selectedChannel));
     // Open during the user gesture, before awaiting the server action.
     const width = 520;
     const height = 760;

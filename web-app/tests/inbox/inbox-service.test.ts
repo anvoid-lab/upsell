@@ -46,7 +46,7 @@ describe("InboxService integration", () => {
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
     const register = vi.spyOn(UnipileInboxProvider.prototype, "ensureWebhooks");
     const service = new InboxService();
-    for (const run of [() => service.connect(), () => service.disconnect(), () => service.syncHistory(), () => service.connectionStatus()]) {
+    for (const run of [() => service.connect(), () => service.disconnect(), () => service.syncHistory(), () => service.connectionStatus(), () => service.cancelConnection()]) {
       await expect(run()).rejects.toThrow("Invalid session");
     }
     expect(register).not.toHaveBeenCalled();
@@ -85,6 +85,15 @@ describe("InboxService integration", () => {
     expect(await new InboxService().connectionStatus()).toBe("connected");
     expect(mocks.filters).toHaveBeenCalledWith("channels", "business_id", mocks.row.business_id);
     expect(mocks.filters).toHaveBeenCalledWith("channels", "provider", "unipile");
+  });
+
+  it("restores an unfinished connection after Hosted Auth is closed", async () => {
+    await new InboxService().cancelConnection("instagram");
+    expect(mocks.writes).toHaveBeenCalledWith("channels", {
+      connection_status: "disconnected",
+      connected: false,
+    });
+    expect(mocks.filters).toHaveBeenCalledWith("channels", "connection_status", "connecting");
   });
 
   it("binds the callback to the signed channel and ignores a supplied business ID", async () => {
