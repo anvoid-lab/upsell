@@ -1,11 +1,11 @@
 import { inboxConversationListService } from "@server/inbox/inbox-conversation-list.service";
-import { InboxService } from "@server/inbox/inbox.service";
+import { settingsChannelsService } from "@/app/settings/settings-channels.service";
 import { InboxView } from "./inbox-view";
 
 export default async function InboxPage() {
-  const [conversationsResult, connectionResult] = await Promise.allSettled([
+  const [conversationsResult, channelsResult] = await Promise.allSettled([
     inboxConversationListService.fetchConversations(),
-    new InboxService().connectionStatus("instagram"),
+    settingsChannelsService.fetchChannels(),
   ]);
 
   return (
@@ -13,11 +13,9 @@ export default async function InboxPage() {
       initialConversations={
         conversationsResult.status === "fulfilled" ? conversationsResult.value : []
       }
-      initialConnectionStatus={
-        connectionResult.status === "fulfilled" ? connectionResult.value : "error"
-      }
+      initialChannels={channelsResult.status === "fulfilled" ? channelsResult.value : []}
       initialLoadFailed={
-        conversationsResult.status === "rejected" || connectionResult.status === "rejected"
+        conversationsResult.status === "rejected" || channelsResult.status === "rejected"
       }
     />
   );

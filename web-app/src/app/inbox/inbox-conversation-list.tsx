@@ -20,7 +20,7 @@ import { STATUS_DOT } from '@/styles/design-tokens';
 import { useConversationList } from './inbox-conversation-list.hook';
 
 interface InboxConversationListProps {
-  onConnect: () => void;
+  onConnect?: () => void;
   selectedId: string | null;
   onSelect: (id: string) => void;
   statusOverrides?: Record<string, ConversationStatus>;
@@ -113,16 +113,18 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
             >
               <Search className="w-3.5 h-3.5 text-neutral-400" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-7 h-7 rounded-full"
-              aria-label="Connect Instagram"
-              title="Connect Instagram"
-              onClick={onConnect}
-            >
-              <Settings className="w-3.5 h-3.5 text-neutral-400" />
-            </Button>
+            {onConnect && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-7 h-7 rounded-full"
+                aria-label="Manage channel connection"
+                title="Manage channel connection"
+                onClick={onConnect}
+              >
+                <Settings className="w-3.5 h-3.5 text-neutral-400" />
+              </Button>
+            )}
           </div>
         </div>
 

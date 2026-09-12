@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { startIntegrationAction, integrationStatusAction } from "./actions";
 import type { InboxChannel } from "@core/contracts/inbox.contract";
 
+export const INBOX_INTEGRATION_POPUP_NAME = "inbox-channel-integration";
+
 export function useIntegration(channel: InboxChannel, result?: string) {
   const [status, setStatus] = useState(result === "error" ? "error" : result === "success" ? "waiting" : "ready");
   const [error, setError] = useState<string | null>(result === "error" ? "Connection was not completed. Please try again." : null);
@@ -11,6 +13,7 @@ export function useIntegration(channel: InboxChannel, result?: string) {
   const mounted = useRef(true);
   const starting = useRef(false);
   const popup = useRef<Window | null>(null);
+  const [activeChannel, setActiveChannel] = useState(channel);
 
   useEffect(() => {
     mounted.current = true;
@@ -28,7 +31,7 @@ export function useIntegration(channel: InboxChannel, result?: string) {
     const deadline = Date.now() + 10 * 60 * 1000;
     async function poll() {
       try {
-        const current = await integrationStatusAction(channel);
+        const current = await integrationStatusAction(activeChannel);
         if (cancelled) return;
         if (current === "connected") {
           popup.current?.close();
@@ -51,24 +54,30 @@ export function useIntegration(channel: InboxChannel, result?: string) {
     }
     void poll();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [channel, status]);
+  }, [activeChannel, status]);
 
   useEffect(() => {
     if (status !== "waiting" && status !== "syncing") return;
     const openedPopup = popup.current;
     if (!openedPopup) return;
-    const timer = window.setInterval(() => {
+    const timer = window.setInterval(async () => {
       if (popup.current === openedPopup && openedPopup.closed) {
         popup.current = null;
-        setStatus("popup_closed");
+        try {
+          const current = await integrationStatusAction(activeChannel);
+          setStatus(current === "connected" ? "connected" : "popup_closed");
+        } catch {
+          setStatus("popup_closed");
+        }
       }
     }, 300);
     return () => window.clearInterval(timer);
-  }, [status]);
+  }, [activeChannel, status]);
 
-  async function start() {
+  async function start(selectedChannel: InboxChannel = channel) {
     if (starting.current) return;
     starting.current = true;
+    setActiveChannel(selectedChannel);
     setError(null);
     setUrl(null);
     setStatus("preparing");
@@ -79,12 +88,12 @@ export function useIntegration(channel: InboxChannel, result?: string) {
     const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
     popup.current = window.open(
       "about:blank",
-      "_blank",
+      INBOX_INTEGRATION_POPUP_NAME,
       `popup=yes,width=${width},height=${height},left=${left},top=${top}`,
     );
     if (popup.current) popup.current.opener = null;
     try {
-      const link = await startIntegrationAction(channel);
+      const link = await startIntegrationAction(selectedChannel);
       if (!mounted.current) {
         popup.current?.close();
         return;
@@ -103,5 +112,13 @@ export function useIntegration(channel: InboxChannel, result?: string) {
     }
   }
 
-  return { status, error, url, start };
+  function reset() {
+    popup.current?.close();
+    popup.current = null;
+    setError(null);
+    setUrl(null);
+    setStatus("ready");
+  }
+
+  return { status, error, url, start, reset };
 }

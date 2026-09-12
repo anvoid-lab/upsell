@@ -7,7 +7,7 @@ import type {
   Conversation,
   ConversationRealtimeRow,
   ConversationStatus,
-  InboxConnectionStatus,
+  ChannelConnection,
 } from '@/types';
 import { InboxConversationList } from './inbox-conversation-list';
 import { InboxChatPanel } from './inbox-chat-panel';
@@ -15,10 +15,12 @@ import { InboxDetailsPanel } from './inbox-details-panel';
 import { useChatPanel } from './inbox-chat-panel.hook';
 import { useRealtimeInbox } from './use-realtime-inbox.hook';
 import { IntegrationView } from '@/app/inbox/integration/integration-view';
+import { InboxOnboarding } from './inbox-onboarding';
 import { updateConversationStatusAction } from './actions';
 import { integrationStatusAction } from './integration/actions';
 import {
   connectionNeedsAttention,
+  resolveInboxConnectionStatus,
   resolveInboxEmptyState,
   type InboxEmptyState as InboxEmptyStateName,
 } from './inbox-state';
@@ -26,7 +28,7 @@ import { Button } from '@/components/ui/button';
 
 interface InboxViewProps {
   initialConversations: Conversation[];
-  initialConnectionStatus: InboxConnectionStatus;
+  initialChannels: ChannelConnection[];
   initialLoadFailed: boolean;
 }
 
@@ -34,12 +36,12 @@ const SELECTED_PARAM = 'c';
 
 export function InboxView({
   initialConversations,
-  initialConnectionStatus,
+  initialChannels,
   initialLoadFailed,
 }: InboxViewProps) {
-  const [integrating, setIntegrating] = useState(false);
-  const [connectionStatus, setConnectionStatus] =
-    useState<InboxConnectionStatus>(initialConnectionStatus);
+  const [integrating, setIntegrating] = useState<ChannelConnection | null>(null);
+  const [channels, setChannels] = useState(initialChannels);
+  const connectionStatus = resolveInboxConnectionStatus(channels);
   const [loadFailed, setLoadFailed] = useState(initialLoadFailed);
   const router = useRouter();
   const pathname = usePathname();
@@ -76,9 +78,9 @@ export function InboxView({
 
   useEffect(() => {
     setConversations(initialConversations);
-    setConnectionStatus(initialConnectionStatus);
+    setChannels(initialChannels);
     setLoadFailed(initialLoadFailed);
-  }, [initialConversations, initialConnectionStatus, initialLoadFailed]);
+  }, [initialConversations, initialChannels, initialLoadFailed]);
 
   useEffect(() => {
     if (connectionStatus !== 'connecting' && connectionStatus !== 'syncing') return;
@@ -86,9 +88,17 @@ export function InboxView({
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const current = await integrationStatusAction('instagram');
+        const activeChannel = channels.find((channel) =>
+          channel.connection_status === 'connecting' || channel.connection_status === 'syncing',
+        );
+        if (!activeChannel) return;
+        const current = await integrationStatusAction(activeChannel.platform);
         if (cancelled) return;
-        setConnectionStatus(current);
+        setChannels((existing) => existing.map((channel) =>
+          channel.platform === activeChannel.platform
+            ? { ...channel, connected: current === 'connected', connection_status: current }
+            : channel,
+        ));
         if (current === 'connecting' || current === 'syncing') {
           timer = setTimeout(poll, 2500);
         } else {
@@ -103,7 +113,7 @@ export function InboxView({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [connectionStatus, router]);
+  }, [channels, connectionStatus, router]);
 
   const chatPanel = useChatPanel(selectedId);
   const { applyRealtimeMessage } = chatPanel;
@@ -177,11 +187,24 @@ export function InboxView({
   const showConnectionWarning =
     emptyState === 'inbox' && connectionNeedsAttention(connectionStatus);
 
+  if (emptyState === 'connect') {
+    return <InboxOnboarding channels={channels} />;
+  }
+
   return (
     <>
-      {integrating && <IntegrationView onClose={() => setIntegrating(false)} />}
+      {integrating && (
+        <IntegrationView
+          channel={integrating.platform as 'whatsapp' | 'instagram'}
+          onClose={() => setIntegrating(null)}
+        />
+      )}
       <InboxConversationList
-        onConnect={() => setIntegrating(true)}
+        onConnect={() => {
+          const channel = channels.find((item) => connectionNeedsAttention(item.connection_status ?? 'disconnected'))
+            ?? channels[0];
+          if (channel) setIntegrating(channel);
+        }}
         selectedId={selectedId}
         onSelect={setSelectedId}
         statusOverrides={statusOverrides}
@@ -190,7 +213,10 @@ export function InboxView({
       {emptyState === 'inbox' ? (
         <div className="flex min-w-0 flex-1 flex-col">
           {showConnectionWarning && (
-            <ConnectionWarning onReconnect={() => setIntegrating(true)} />
+            <ConnectionWarning onReconnect={() => {
+              const channel = channels.find((item) => connectionNeedsAttention(item.connection_status ?? 'disconnected'));
+              if (channel) setIntegrating(channel);
+            }} />
           )}
           <div className="flex min-h-0 flex-1">
             <InboxChatPanel
@@ -210,7 +236,11 @@ export function InboxView({
       ) : (
         <InboxEmptyState
           state={emptyState}
-          onConnect={() => setIntegrating(true)}
+          onConnect={() => {
+            const channel = channels.find((item) => connectionNeedsAttention(item.connection_status ?? 'disconnected'))
+              ?? channels[0];
+            if (channel) setIntegrating(channel);
+          }}
           onRetry={() => router.refresh()}
         />
       )}
