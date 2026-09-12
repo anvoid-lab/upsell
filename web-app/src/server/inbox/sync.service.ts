@@ -110,6 +110,8 @@ export class InboxSyncService {
       direction: message.direction,
       timestamp: message.occurredAt.toISOString(),
       read: message.direction === "out",
+      delivery_status: message.direction === "out" ? "sent" : null,
+      delivery_updated_at: message.direction === "out" ? message.occurredAt.toISOString() : null,
     }));
     const inserted = await supabase.from("messages").insert(rows);
     if (inserted.error?.code !== "23505" && inserted.error) throw inserted.error;

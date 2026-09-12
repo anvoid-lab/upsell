@@ -11,8 +11,13 @@ export async function fetchConversationAction(id: string): Promise<Conversation 
 export async function sendMessageAction(
   conversationId: string,
   content: string,
+  clientMessageId: string,
 ): Promise<Message> {
-  return inboxChatPanelService.sendMessage(conversationId, content);
+  return inboxChatPanelService.sendMessage(conversationId, content, clientMessageId);
+}
+
+export async function retryMessageAction(messageId: string): Promise<Message> {
+  return inboxChatPanelService.retryMessage(messageId);
 }
 
 export async function markAsReadAction(conversationId: string): Promise<void> {

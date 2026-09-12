@@ -322,6 +322,46 @@ export class InboxService implements InboxProvider {
       }
     }
 
+    if (event.direction === "out") {
+      const reconciliationWindow = new Date(event.occurredAt.getTime() - 5 * 60_000).toISOString();
+      const pending = await supabase
+        .from("messages")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("conversation_id", conversation.id)
+        .eq("direction", "out")
+        .eq("content", event.text)
+        .is("channel_message_id", null)
+        .in("delivery_status", ["pending", "sending"])
+        .gte("timestamp", reconciliationWindow)
+        .order("timestamp", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (pending.error) throw pending.error;
+      if (pending.data) {
+        const reconciled = await supabase
+          .from("messages")
+          .update({
+            channel_message_id: event.externalMessageId,
+            delivery_status: "sent",
+            delivery_error: null,
+            delivery_updated_at: event.occurredAt.toISOString(),
+            read: true,
+          })
+          .eq("id", pending.data.id)
+          .eq("business_id", businessId);
+        if (reconciled.error?.code === "23505") return "duplicate" as const;
+        if (reconciled.error) throw reconciled.error;
+
+        const conversationUpdate = await supabase.from("conversations").update({
+          last_message: event.text,
+          last_message_at: event.occurredAt.toISOString(),
+        }).eq("id", conversation.id).eq("business_id", businessId);
+        if (conversationUpdate.error) throw conversationUpdate.error;
+        return "accepted" as const;
+      }
+    }
+
     const { error: insertError } = await supabase.from("messages").insert({
       business_id: businessId,
       channel_id: channelId,
@@ -331,6 +371,8 @@ export class InboxService implements InboxProvider {
       direction: event.direction,
       timestamp: event.occurredAt.toISOString(),
       read: event.direction === "out",
+      delivery_status: event.direction === "out" ? "sent" : null,
+      delivery_updated_at: event.direction === "out" ? event.occurredAt.toISOString() : null,
     });
     if (insertError?.code === "23505") return "duplicate" as const;
     if (insertError) throw insertError;

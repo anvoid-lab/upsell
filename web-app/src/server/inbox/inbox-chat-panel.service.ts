@@ -3,6 +3,7 @@ import "server-only";
 import { BaseRepository } from "@core/repository";
 import {
   FollowUpContract,
+  InboxProviderError,
   MessageContract,
   validateContract,
   type ConversationDoc,
@@ -19,54 +20,63 @@ class InboxChatPanelService {
     client: createSupabaseServerClient,
   });
 
-  private readonly messages = new BaseRepository<Message>({
-    table: "messages",
-    client: createSupabaseServerClient,
-  });
-
   private readonly followUps = new BaseRepository<FollowUp>({
     table: "follow_ups",
     client: createSupabaseServerClient,
   });
 
-  /**
-   * Return the created row so the panel can reconcile its local message with
-   * the same row later delivered by Realtime without rendering a duplicate.
-   */
-  async sendMessage(conversationId: string, content: string): Promise<Message> {
+  async sendMessage(
+    conversationId: string,
+    content: string,
+    clientMessageId: string,
+  ): Promise<Message> {
     validateContract(
       MessageContract.sendRequestSchema,
-      { conversation_id: conversationId, content },
+      {
+        conversation_id: conversationId,
+        content,
+        client_message_id: clientMessageId,
+      },
       "InboxChatPanelService.sendMessage",
     );
     const delivery = await this.resolveDelivery(conversationId);
-    const sent = await new InboxService(delivery.provider).sendMessage({
-      accountId: delivery.accountId,
-      externalChatId: delivery.externalChatId,
-      text: content,
-    });
     const now = new Date();
-    // The database generates the bigint ID.
-    const created = await this.persistSentMessage({
+    const pending = await this.createPendingMessage({
       conversation_id: conversationId,
       content,
       direction: "out",
       timestamp: now,
-      read: true,
+      read: false,
       channel_id: delivery.channelId,
-      channel_message_id: sent.externalMessageId,
-    } as Partial<Message>, sent.externalMessageId);
-    // Keep the conversation at the top of the list ordered by last_message_at.
-    await this.conversations.update(conversationId, {
-      last_message: content,
-      last_message_at: now,
-    } as Partial<ConversationDoc>);
+      client_message_id: clientMessageId,
+      delivery_status: "pending",
+      delivery_updated_at: now,
+    });
+    return this.deliverMessage(pending, delivery);
+  }
 
-    return validateContract(
-      MessageContract.entitySchema,
-      created,
-      "InboxChatPanelService.sendMessage",
+  async retryMessage(messageId: string): Promise<Message> {
+    validateContract(
+      MessageContract.retryRequestSchema,
+      { message_id: messageId },
+      "InboxChatPanelService.retryMessage",
     );
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("id", messageId)
+      .eq("direction", "out")
+      .is("deleted_at", null)
+      .single();
+    if (error || !data) throw error ?? new Error("Outbound message not found.");
+    const message = validateContract(
+      MessageContract.entitySchema,
+      data,
+      "InboxChatPanelService.retryMessage",
+    );
+    const delivery = await this.resolveDelivery(message.conversation_id);
+    return this.deliverMessage(message, delivery);
   }
 
   /** Clear the unread badge when a seller opens the conversation. */
@@ -163,30 +173,171 @@ class InboxChatPanelService {
     }
   }
 
-  private async persistSentMessage(
-    message: Partial<Message>,
-    externalMessageId: string,
-  ): Promise<Message> {
-    try {
-      return await this.messages.create<Message>(message);
-    } catch (writeError) {
-      // The Unipile webhook can arrive before the HTTP send response. In that
-      // race the webhook has already inserted the same provider message id.
-      const supabase = await createSupabaseServerClient();
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("channel_message_id", externalMessageId)
-        .is("deleted_at", null)
-        .maybeSingle();
-      if (error || !data) throw writeError;
+  private async createPendingMessage(message: Partial<Message>): Promise<Message> {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("messages")
+      .insert(message)
+      .select("*")
+      .single();
+    if (!error && data) {
       return validateContract(
         MessageContract.entitySchema,
         data,
-        "InboxChatPanelService.persistSentMessage",
+        "InboxChatPanelService.createPendingMessage",
       );
     }
+    if (error?.code !== "23505" || !message.client_message_id) throw error;
+
+    const existing = await supabase
+      .from("messages")
+      .select("*")
+      .eq("client_message_id", message.client_message_id)
+      .is("deleted_at", null)
+      .single();
+    if (existing.error || !existing.data) throw existing.error ?? error;
+    const parsed = validateContract(
+      MessageContract.entitySchema,
+      existing.data,
+      "InboxChatPanelService.createPendingMessage.existing",
+    );
+    if (
+      parsed.conversation_id !== message.conversation_id ||
+      parsed.content !== message.content ||
+      parsed.direction !== "out"
+    ) {
+      throw new Error("The client message ID is already used by another message.");
+    }
+    return parsed;
+  }
+
+  private async deliverMessage(
+    message: Message,
+    delivery: {
+      provider: string;
+      channelId: string;
+      accountId: string;
+      externalChatId: string;
+    },
+  ): Promise<Message> {
+    if (message.delivery_status === "sent") return message;
+
+    const supabase = await createSupabaseServerClient();
+    const claimedAt = new Date();
+    const claimedResult = await supabase
+      .from("messages")
+      .update({
+        delivery_status: "sending",
+        delivery_error: null,
+        delivery_updated_at: claimedAt.toISOString(),
+      })
+      .eq("id", message.id)
+      .eq("direction", "out")
+      .in("delivery_status", ["pending", "failed"])
+      .is("deleted_at", null)
+      .select("*")
+      .maybeSingle();
+    if (claimedResult.error) throw claimedResult.error;
+    if (!claimedResult.data) return this.fetchMessage(message.id);
+
+    const claimed = validateContract(
+      MessageContract.entitySchema,
+      claimedResult.data,
+      "InboxChatPanelService.deliverMessage.claim",
+    );
+
+    let externalMessageId: string;
+    try {
+      const sent = await new InboxService(delivery.provider).sendMessage({
+        accountId: delivery.accountId,
+        externalChatId: delivery.externalChatId,
+        text: claimed.content,
+      });
+      externalMessageId = sent.externalMessageId;
+    } catch (providerError) {
+      if (!(providerError instanceof InboxProviderError)) {
+        // A network failure is ambiguous: the provider may have accepted the
+        // message. Keep it pending so retry cannot send a duplicate blindly;
+        // the outbound webhook can still reconcile it.
+        return claimed;
+      }
+      const failed = await supabase
+        .from("messages")
+        .update({
+          delivery_status: "failed",
+          delivery_error: deliveryErrorMessage(providerError),
+          delivery_updated_at: new Date().toISOString(),
+        })
+        .eq("id", claimed.id)
+        .select("*")
+        .single();
+      if (failed.error || !failed.data) throw failed.error ?? providerError;
+      return validateContract(
+        MessageContract.entitySchema,
+        failed.data,
+        "InboxChatPanelService.deliverMessage.failed",
+      );
+    }
+
+    const sentAt = new Date();
+    const sent = await supabase
+      .from("messages")
+      .update({
+        channel_message_id: externalMessageId,
+        delivery_status: "sent",
+        delivery_error: null,
+        delivery_updated_at: sentAt.toISOString(),
+      })
+      .eq("id", claimed.id)
+      .select("*")
+      .single();
+
+    if (sent.error || !sent.data) {
+      // The provider accepted the message. Never turn this into a retryable
+      // failure merely because the local confirmation write failed.
+      return { ...claimed, channel_message_id: externalMessageId };
+    }
+
+    await this.conversations.update(message.conversation_id, {
+      last_message: message.content,
+      last_message_at: sentAt,
+    } as Partial<ConversationDoc>);
+
+    return validateContract(
+      MessageContract.entitySchema,
+      sent.data,
+      "InboxChatPanelService.deliverMessage.sent",
+    );
+  }
+
+  private async fetchMessage(messageId: string): Promise<Message> {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("id", messageId)
+      .is("deleted_at", null)
+      .single();
+    if (error || !data) throw error ?? new Error("Message not found.");
+    return validateContract(
+      MessageContract.entitySchema,
+      data,
+      "InboxChatPanelService.fetchMessage",
+    );
   }
 }
 
 export const inboxChatPanelService = new InboxChatPanelService();
+
+function deliveryErrorMessage(error: InboxProviderError): string {
+  if (error.status === 401 || error.status === 403) {
+    return "Instagram connection expired. Reconnect the account and try again.";
+  }
+  if (error.status === 429) {
+    return "Instagram rate limit reached. Try again shortly.";
+  }
+  if (error.status >= 500) {
+    return "Instagram is temporarily unavailable. Try again.";
+  }
+  return "Instagram rejected the message. Check the content and try again.";
+}

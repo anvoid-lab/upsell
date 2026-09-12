@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 import { createSupabaseBrowserClient, ensureRealtimeAuth } from "@db/browser-client";
 import { ConversationContract, MessageContract } from "@core/contracts";
@@ -43,8 +43,8 @@ export function useRealtimeInbox(handlers: Handlers) {
         .channel("inbox")
         .on(
           "postgres_changes",
-          { event: "INSERT", schema: "public", table: "messages" },
-          (payload: RealtimePostgresInsertPayload<Record<string, unknown>>) => {
+          { event: "*", schema: "public", table: "messages" },
+          (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
             const parsed = MessageContract.entitySchema.safeParse(payload.new);
             if (parsed.success) {
               handlersRef.current.onMessage?.(parsed.data);

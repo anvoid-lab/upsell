@@ -15,6 +15,7 @@ export type {
   FollowUpStatus,
   FollowUpType,
   Message,
+  MessageDeliveryStatus,
   MessageDirection,
   Platform,
   PlatformStat,

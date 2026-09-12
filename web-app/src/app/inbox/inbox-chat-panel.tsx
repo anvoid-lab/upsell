@@ -11,7 +11,10 @@ import {
   Sparkles,
   PenLine,
   Check,
-  CheckCheck,
+  AlertCircle,
+  Clock3,
+  Loader2,
+  RotateCcw,
   ChevronDown,
   FileText,
   UserPlus,
@@ -171,8 +174,10 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     replyText,
     isLoading,
     isSending,
+    retryingMessageIds,
     setReplyText,
     handleSendReply,
+    handleRetryMessage,
   } = chatPanel;
 
   const { show: showConfirm } = useConfirmToast();
@@ -440,7 +445,12 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             <DateSeparator label={group.dateLabel} />
             <div className="flex flex-col gap-3">
               {group.messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  isRetrying={retryingMessageIds.has(msg.id)}
+                  onRetry={() => void handleRetryMessage(msg.id)}
+                />
               ))}
             </div>
           </div>
@@ -776,8 +786,15 @@ const DateSeparator: FC<{ label: string }> = ({ label }) => (
   </div>
 );
 
-const MessageBubble: FC<{ message: Message }> = ({ message }) => {
+const MessageBubble: FC<{
+  message: Message;
+  isRetrying: boolean;
+  onRetry: () => void;
+}> = ({ message, isRetrying, onRetry }) => {
   const isOut = message.direction === 'out';
+  const deliveryStatus = message.delivery_status ?? 'sent';
+  const isPending = deliveryStatus === 'pending' || deliveryStatus === 'sending';
+  const isFailed = deliveryStatus === 'failed';
   return (
     <div
       className={cn(
@@ -794,7 +811,9 @@ const MessageBubble: FC<{ message: Message }> = ({ message }) => {
         className={cn(
           'px-4 py-2.5 text-sm leading-relaxed shadow-sm',
           isOut
-            ? 'bg-primary-600 text-white rounded-2xl rounded-br-md'
+            ? isFailed
+              ? 'bg-red-50 text-red-800 border border-red-200 rounded-2xl rounded-br-md'
+              : 'bg-primary-600 text-white rounded-2xl rounded-br-md'
             : 'bg-white text-neutral-800 rounded-2xl rounded-bl-md border border-neutral-100',
         )}
       >
@@ -809,13 +828,40 @@ const MessageBubble: FC<{ message: Message }> = ({ message }) => {
             <Sparkles className="w-2.5 h-2.5" /> VendAI
           </span>
         )}
-        {isOut &&
-          (message.read ? (
-            <CheckCheck className="w-3 h-3 text-primary-400" />
-          ) : (
-            <Check className="w-3 h-3 text-neutral-300" />
-          ))}
+        {isOut && isPending && (
+          <span className="flex items-center gap-1 text-[10px] text-neutral-400">
+            <Clock3 className="w-3 h-3" /> Pending
+          </span>
+        )}
+        {isOut && deliveryStatus === 'sent' && (
+          <span className="flex items-center gap-1 text-[10px] text-primary-500">
+            <Check className="w-3 h-3" /> Sent
+          </span>
+        )}
+        {isOut && isFailed && (
+          <div className="flex items-center gap-1.5 text-[10px] text-red-600">
+            <span className="flex items-center gap-1" title={message.delivery_error ?? undefined}>
+              <AlertCircle className="w-3 h-3" /> Failed
+            </span>
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={isRetrying}
+              className="flex items-center gap-1 font-semibold underline underline-offset-2 disabled:opacity-50"
+            >
+              {isRetrying
+                ? <Loader2 className="w-3 h-3 animate-spin" />
+                : <RotateCcw className="w-3 h-3" />}
+              Retry
+            </button>
+          </div>
+        )}
       </div>
+      {isOut && isFailed && message.delivery_error && (
+        <p className="mt-1 max-w-sm px-1 text-right text-[10px] text-red-500">
+          {message.delivery_error}
+        </p>
+      )}
     </div>
   );
 };

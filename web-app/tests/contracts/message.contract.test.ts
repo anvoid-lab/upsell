@@ -29,4 +29,27 @@ describe("MessageContract.entitySchema", () => {
     const result = MessageContract.entitySchema.safeParse({ ...base, timestamp: "23:24" });
     expect(result.success).toBe(false);
   });
+
+  it("accepts persisted outbound delivery state", () => {
+    const result = MessageContract.entitySchema.parse({
+      ...base,
+      direction: "out",
+      timestamp: new Date(),
+      client_message_id: "22222222-2222-4222-8222-222222222222",
+      delivery_status: "failed",
+      delivery_error: "Instagram rate limit reached.",
+      delivery_updated_at: "2026-09-12T15:00:00Z",
+    });
+    expect(result.delivery_status).toBe("failed");
+    expect(result.delivery_updated_at).toBeInstanceOf(Date);
+  });
+
+  it("rejects an invalid client id for a send request", () => {
+    const result = MessageContract.sendRequestSchema.safeParse({
+      conversation_id: "42",
+      content: "Hello",
+      client_message_id: "not-a-uuid",
+    });
+    expect(result.success).toBe(false);
+  });
 });

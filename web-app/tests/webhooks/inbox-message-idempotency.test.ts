@@ -19,6 +19,7 @@ function createDatabase() {
   return {
     from(table: string) {
       const filters: Record<string, unknown> = {};
+      let acceptedStatuses: string[] | null = null;
       let operation: Operation = { type: "select" };
       let executed = false;
       let result: { data?: unknown; error: null | { code: string; message: string } };
@@ -50,6 +51,28 @@ function createDatabase() {
           return result;
         }
 
+        if (operation.type === "select" && table === "messages") {
+          const row = [...messages.values()].find((candidate) =>
+            (!filters.conversation_id || candidate.conversation_id === filters.conversation_id) &&
+            (!filters.direction || candidate.direction === filters.direction) &&
+            (!filters.content || candidate.content === filters.content) &&
+            (!("channel_message_id" in filters) || candidate.channel_message_id === filters.channel_message_id) &&
+            (!acceptedStatuses || acceptedStatuses.includes(String(candidate.delivery_status))),
+          );
+          result = { data: row ? { id: row.id } : null, error: null };
+          return result;
+        }
+
+        if (operation.type === "update" && table === "messages") {
+          const entry = [...messages.entries()].find(([, candidate]) => candidate.id === filters.id);
+          if (entry) {
+            const [key, candidate] = entry;
+            messages.set(key, { ...candidate, ...operation.value });
+          }
+          result = { data: null, error: null };
+          return result;
+        }
+
         result = { data: null, error: null };
         return result;
       };
@@ -60,7 +83,17 @@ function createDatabase() {
           filters[key] = value;
           return chain;
         },
-        is: () => chain,
+        is: (key: string, value: unknown) => {
+          filters[key] = value;
+          return chain;
+        },
+        in: (_key: string, values: string[]) => {
+          acceptedStatuses = values;
+          return chain;
+        },
+        gte: () => chain,
+        order: () => chain,
+        limit: () => chain,
         insert: (value: Record<string, unknown>) => {
           operation = { type: "insert", value };
           return chain;
@@ -140,5 +173,35 @@ describe("Instagram webhook message idempotency", () => {
     expect(results.sort()).toEqual(["accepted", "duplicate"]);
     expect(conversations).toHaveLength(1);
     expect(messages).toHaveLength(1);
+  });
+
+  it("reconciles an outbound webhook with its pending local message", async () => {
+    conversations.set("instagram-chat", { id: "conversation-1" });
+    messages.set("pending", {
+      id: "message-1",
+      business_id: "business-1",
+      conversation_id: "conversation-1",
+      channel_id: "channel-1",
+      channel_message_id: null,
+      client_message_id: "22222222-2222-4222-8222-222222222222",
+      content: "Hello",
+      direction: "out",
+      delivery_status: "sending",
+      timestamp: new Date("2026-09-12T08:59:59Z").toISOString(),
+    });
+    const outbound = {
+      ...event,
+      sender: { attendee_provider_id: "store", attendee_name: "Store" },
+    };
+
+    expect(await new InboxService().receiveWebhook(
+      new Headers({ "Unipile-Auth": "test-webhook-secret" }),
+      outbound,
+    )).toBe("accepted");
+    expect(messages).toHaveLength(1);
+    expect(messages.get("pending")).toMatchObject({
+      channel_message_id: "instagram-message",
+      delivery_status: "sent",
+    });
   });
 });
