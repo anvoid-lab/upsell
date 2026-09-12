@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SignJWT } from "jose";
-import { createHostedAuthState, verifyHostedAuthState } from "../../src/app/inbox/hosted-auth-state";
+import { createHostedAuthState, verifyHostedAuthState } from "../../src/server/inbox/hosted-auth-state";
 
 const businessId = "11111111-1111-4111-8111-111111111111";
 const channelId = "22222222-2222-4222-8222-222222222222";

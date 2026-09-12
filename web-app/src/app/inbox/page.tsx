@@ -1,4 +1,4 @@
-import { inboxConversationListService } from "./inbox-conversation-list.service";
+import { inboxConversationListService } from "@server/inbox/inbox-conversation-list.service";
 import { InboxView } from "./inbox-view";
 
 export default async function InboxPage() {

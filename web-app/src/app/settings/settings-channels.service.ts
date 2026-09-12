@@ -7,7 +7,7 @@ import {
   type ChannelConnection,
 } from "@core/contracts";
 import { createSupabaseServerClient } from "@db/client";
-import { InboxService } from "@/app/inbox/inbox.service";
+import { InboxService } from "@server/inbox/inbox.service";
 import { InboxContract, type InboxChannel } from "@core/contracts/inbox.contract";
 
 type ChannelDoc = ChannelConnection & { id: string };

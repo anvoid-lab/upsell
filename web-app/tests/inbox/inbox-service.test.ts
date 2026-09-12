@@ -3,16 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   client: vi.fn(), serviceClient: vi.fn(), getUser: vi.fn(), filters: vi.fn(),
   writes: vi.fn(), sync: vi.fn(),
-  row: { id: "22222222-2222-4222-8222-222222222222", business_id: "11111111-1111-4111-8111-111111111111",
-    provider: "unipile", provider_account_id: "account-1", connection_status: "connected" },
+  row: {
+    id: "22222222-2222-4222-8222-222222222222", business_id: "11111111-1111-4111-8111-111111111111",
+    provider: "unipile", provider_account_id: "account-1", connection_status: "connected"
+  },
 }));
 vi.mock("@db/client", () => ({
   createSupabaseServerClient: mocks.client, createSupabaseServiceClient: mocks.serviceClient,
 }));
-vi.mock("@/app/inbox/sync.service", () => ({ inboxSyncService: { syncAccount: mocks.sync } }));
-import { InboxService } from "../../src/app/inbox/inbox.service";
-import { UnipileInboxProvider } from "../../src/app/inbox/providers/unipile";
-import { createHostedAuthState, verifyHostedAuthState } from "../../src/app/inbox/hosted-auth-state";
+vi.mock("@server/inbox/sync.service", () => ({ inboxSyncService: { syncAccount: mocks.sync } }));
+import { InboxService } from "../../src/server/inbox/inbox.service";
+import { UnipileInboxProvider } from "../../src/server/inbox/providers/unipile";
+import { createHostedAuthState, verifyHostedAuthState } from "../../src/server/inbox/hosted-auth-state";
 
 beforeEach(() => {
   vi.stubEnv("INBOX_HOSTED_AUTH_SECRET", "a".repeat(64));

@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { receive, createLink, registerHooks, sync } = vi.hoisted(() => ({
   receive: vi.fn(), createLink: vi.fn(), registerHooks: vi.fn(), sync: vi.fn(),
 }));
-vi.mock("@/app/inbox/sync.service", () => ({ inboxSyncService: { syncAccount: sync } }));
+vi.mock("@server/inbox/sync.service", () => ({ inboxSyncService: { syncAccount: sync } }));
 
 import { POST } from "../../src/app/inbox/webhooks/channel/route";
-import { InboxService } from "../../src/app/inbox/inbox.service";
+import { InboxService } from "../../src/server/inbox/inbox.service";
 
 
 describe("connection status callback", () => {

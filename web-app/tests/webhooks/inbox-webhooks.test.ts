@@ -8,7 +8,7 @@ const { database, writes, filters, account } = vi.hoisted(() => ({
 }));
 vi.mock("@db/client", () => ({ createSupabaseServiceClient: database }));
 
-import { InboxService } from "../../src/app/inbox/inbox.service";
+import { InboxService } from "../../src/server/inbox/inbox.service";
 import { POST } from "../../src/app/inbox/webhooks/channel/route";
 
 describe("unified inbox webhooks", () => {
@@ -36,13 +36,13 @@ describe("unified inbox webhooks", () => {
   };
 
   it("rejects unauthenticated events before accessing the database", () => {
-    expect(() => new InboxService().receiveWebhook( new Headers(), status)).toThrow("authentication failed");
+    expect(() => new InboxService().receiveWebhook(new Headers(), status)).toThrow("authentication failed");
     expect(database).not.toHaveBeenCalled();
   });
 
   it("resolves the business from the registered account and records its state", async () => {
     const headers = new Headers({ "Unipile-Auth": "test-webhook-secret" });
-    await new InboxService().receiveWebhook( headers, { ...status, business_id: "forged-business" });
+    await new InboxService().receiveWebhook(headers, { ...status, business_id: "forged-business" });
     expect(filters).toHaveBeenCalledWith("provider_account_id", "external-account");
     expect(filters).toHaveBeenCalledWith("platform", "whatsapp");
     expect(filters).toHaveBeenCalledWith("business_id", "business-1");

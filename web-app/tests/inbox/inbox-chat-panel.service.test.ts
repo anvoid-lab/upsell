@@ -6,7 +6,7 @@ const { writes, providerSend, providerRead, conversationLookupError } = vi.hoist
   providerRead: vi.fn().mockResolvedValue(undefined),
   conversationLookupError: { value: null as null | { code: string; message: string } },
 }));
-vi.mock("@/app/inbox/inbox.service", () => ({
+vi.mock("@server/inbox/inbox.service", () => ({
   InboxService: class {
     sendMessage = providerSend;
     markChatRead = providerRead;
@@ -31,7 +31,7 @@ vi.mock("@db/client", () => ({
 }));
 vi.mock("@core/repository", () => ({
   BaseRepository: class {
-    constructor(private options: { table: string }) {}
+    constructor(private options: { table: string }) { }
     async create(data: Record<string, unknown>) {
       writes(this.options.table, "create", data);
       return { id: "101", ...data };
@@ -43,7 +43,7 @@ vi.mock("@core/repository", () => ({
   },
 }));
 
-import { inboxChatPanelService } from "../../src/app/(app)/inbox/inbox-chat-panel.service";
+import { inboxChatPanelService } from "../../src/server/inbox/inbox-chat-panel.service";
 
 describe("manual messaging after AI removal", () => {
   beforeEach(() => {

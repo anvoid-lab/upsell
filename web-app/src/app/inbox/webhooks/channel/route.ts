@@ -1,4 +1,4 @@
-import { InboxService } from "../../inbox.service";
+import { InboxService } from "@server/inbox/inbox.service";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;

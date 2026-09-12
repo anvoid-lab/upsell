@@ -5,10 +5,8 @@ import {
   ConversationContract,
   type Conversation,
   type ConversationDoc,
-  type ConversationStatus,
   type FollowUp,
   type Message,
-  type Platform,
 } from "@core/contracts";
 import { createSupabaseServerClient } from "@db/client";
 
@@ -64,30 +62,6 @@ class InboxConversationListService {
     }).conversation;
   }
 
-  filterByStatus(conversations: Conversation[], status: ConversationStatus): Conversation[] {
-    return conversations.filter((c) => c.status === status);
-  }
-
-  filterByPlatform(conversations: Conversation[], platform: Platform): Conversation[] {
-    return conversations.filter((c) => c.contact.platform === platform);
-  }
-
-  searchConversations(conversations: Conversation[], query: string): Conversation[] {
-    const q = query.toLowerCase();
-    return conversations.filter(
-      (c) =>
-        c.contact.name.toLowerCase().includes(q) ||
-        c.last_message.toLowerCase().includes(q)
-    );
-  }
-
-  countUnread(conversations: Conversation[]): number {
-    return conversations.filter((c) => c.unread).length;
-  }
-
-  countByStatus(conversations: Conversation[], status: ConversationStatus): number {
-    return conversations.filter((c) => c.status === status).length;
-  }
 }
 
 export const inboxConversationListService = new InboxConversationListService();

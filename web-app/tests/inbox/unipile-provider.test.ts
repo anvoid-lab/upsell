@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UnipileInboxProvider } from "../../src/app/inbox/providers/unipile";
+import { UnipileInboxProvider } from "../../src/server/inbox/providers/unipile";
 
 describe("Unipile inbox provider", () => {
   beforeEach(() => {

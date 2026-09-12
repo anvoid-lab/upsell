@@ -1,4 +1,4 @@
-import { InboxService } from "../inbox.service";
+import { InboxService } from "@server/inbox/inbox.service";
 import { IntegrationView } from "./integration-view";
 import { InboxContract } from "@core/contracts/inbox.contract";
 

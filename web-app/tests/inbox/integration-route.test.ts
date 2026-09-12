@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { InboxService } from "../../src/app/inbox/inbox.service";
+import { InboxService } from "../../src/server/inbox/inbox.service";
 import { POST } from "../../src/app/inbox/webhooks/channel/route";
 
 afterEach(() => vi.restoreAllMocks());

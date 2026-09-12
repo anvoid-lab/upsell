@@ -1,6 +1,6 @@
 "use server";
 
-import { InboxService } from "../inbox.service";
+import { InboxService } from "@server/inbox/inbox.service";
 import { InboxContract } from "@core/contracts/inbox.contract";
 
 export async function startIntegrationAction(channel: unknown) {

@@ -11,7 +11,7 @@ import {
   type Message,
 } from "@core/contracts";
 import { createSupabaseServerClient } from "@db/client";
-import { InboxService } from "@/app/inbox/inbox.service";
+import { InboxService } from "./inbox.service";
 
 class InboxChatPanelService {
   private readonly conversations = new BaseRepository<ConversationDoc>({

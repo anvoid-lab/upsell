@@ -2,7 +2,11 @@
 
 import { useCallback, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { Conversation, ConversationRealtimeRow, ConversationStatus } from '@/types';
+import type {
+  Conversation,
+  ConversationRealtimeRow,
+  ConversationStatus,
+} from '@/types';
 import { InboxConversationList } from './inbox-conversation-list';
 import { InboxChatPanel } from './inbox-chat-panel';
 import { InboxDetailsPanel } from './inbox-details-panel';
@@ -35,7 +39,9 @@ export function InboxView({ initialConversations }: InboxViewProps) {
       }
       // Replace the current entry so the Back button leaves the inbox instead
       // of traversing every previously selected conversation.
-      router.replace(`${pathname}${params.size ? `?${params}` : ''}`, { scroll: false });
+      router.replace(`${pathname}${params.size ? `?${params}` : ''}`, {
+        scroll: false,
+      });
     },
     [router, pathname, searchParams],
   );
@@ -52,24 +58,27 @@ export function InboxView({ initialConversations }: InboxViewProps) {
   const chatPanel = useChatPanel(selectedId);
   const { applyRealtimeMessage } = chatPanel;
 
-  const handleConversationChange = useCallback((incoming: ConversationRealtimeRow) => {
-    setConversations((prev) => {
-      const index = prev.findIndex((c) => c.id === incoming.id);
-      if (index === -1) {
-        // A new conversation receives its messages and follow-ups when opened
-        // or through Realtime if it is already selected.
-        return [{ ...incoming, messages: [], follow_ups: [] }, ...prev];
-      }
-      const next = [...prev];
-      // Preserve related data that is not included in the Realtime row.
-      next[index] = {
-        ...incoming,
-        messages: prev[index].messages,
-        follow_ups: prev[index].follow_ups,
-      };
-      return next;
-    });
-  }, []);
+  const handleConversationChange = useCallback(
+    (incoming: ConversationRealtimeRow) => {
+      setConversations((prev) => {
+        const index = prev.findIndex((c) => c.id === incoming.id);
+        if (index === -1) {
+          // A new conversation receives its messages and follow-ups when opened
+          // or through Realtime if it is already selected.
+          return [{ ...incoming, messages: [], follow_ups: [] }, ...prev];
+        }
+        const next = [...prev];
+        // Preserve related data that is not included in the Realtime row.
+        next[index] = {
+          ...incoming,
+          messages: prev[index].messages,
+          follow_ups: prev[index].follow_ups,
+        };
+        return next;
+      });
+    },
+    [],
+  );
 
   useRealtimeInbox({
     onMessage: applyRealtimeMessage,

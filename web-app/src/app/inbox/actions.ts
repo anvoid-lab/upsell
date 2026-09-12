@@ -1,7 +1,7 @@
 "use server";
 
-import { inboxConversationListService } from "./inbox-conversation-list.service";
-import { inboxChatPanelService } from "./inbox-chat-panel.service";
+import { inboxConversationListService } from "@server/inbox/inbox-conversation-list.service";
+import { inboxChatPanelService } from "@server/inbox/inbox-chat-panel.service";
 import type { Conversation, FollowUpType, Message } from "@core/contracts";
 
 export async function fetchConversationAction(id: string): Promise<Conversation | null> {
