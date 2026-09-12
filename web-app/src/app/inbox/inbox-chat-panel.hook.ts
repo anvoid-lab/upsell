@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Conversation, Message } from "@/types";
+import type { Conversation, ConversationNote, Message } from "@/types";
 import {
+  addConversationNoteAction,
   fetchConversationAction,
   markAsReadAction,
   retryMessageAction,
@@ -16,9 +17,12 @@ export interface UseChatPanelReturn {
   isLoading: boolean;
   isSending: boolean;
   retryingMessageIds: Set<string>;
+  notes: ConversationNote[];
+  isAddingNote: boolean;
   setReplyText: (text: string) => void;
   handleSendReply: () => Promise<void>;
   handleRetryMessage: (messageId: string) => Promise<void>;
+  handleAddNote: (content: string) => Promise<boolean>;
   applyRealtimeMessage: (message: Message) => void;
 }
 
@@ -29,17 +33,22 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [retryingMessageIds, setRetryingMessageIds] = useState<Set<string>>(new Set());
+  const [notes, setNotes] = useState<ConversationNote[]>([]);
+  const [isAddingNote, setIsAddingNote] = useState(false);
   const sendingRef = useRef(false);
   const retryingRef = useRef<Set<string>>(new Set());
+  const addingNoteRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     setConversation(null);
     setMessages([]);
     setReplyText("");
+    setNotes([]);
     setRetryingMessageIds(new Set());
     sendingRef.current = false;
     retryingRef.current.clear();
+    addingNoteRef.current = false;
     setIsLoading(Boolean(selectedId));
     if (!selectedId) return;
     fetchConversationAction(selectedId)
@@ -47,6 +56,7 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
         if (cancelled) return;
         setConversation(conv);
         setMessages(conv?.messages ?? []);
+        setNotes(conv?.notes ?? []);
       })
       .catch(() => { /* Leave the empty panel available if loading fails. */ })
       .finally(() => { if (!cancelled) setIsLoading(false); });
@@ -155,6 +165,35 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
     if (message.conversation_id === selectedId) upsertMessage(message);
   }, [selectedId, upsertMessage]);
 
-  return { conversation, messages, replyText, isLoading, isSending, retryingMessageIds,
-    setReplyText, handleSendReply, handleRetryMessage, applyRealtimeMessage };
+  const handleAddNote = useCallback(async (content: string): Promise<boolean> => {
+    const trimmed = content.trim();
+    if (!trimmed || !selectedId || addingNoteRef.current) return false;
+
+    const optimisticId = `pending-note:${crypto.randomUUID()}`;
+    const optimistic: ConversationNote = {
+      id: optimisticId,
+      conversation_id: selectedId,
+      author_id: "00000000-0000-4000-8000-000000000000",
+      content: trimmed,
+      created_at: new Date(),
+    };
+    addingNoteRef.current = true;
+    setIsAddingNote(true);
+    setNotes((current) => [optimistic, ...current]);
+    try {
+      const created = await addConversationNoteAction(selectedId, trimmed);
+      setNotes((current) => current.map((note) => note.id === optimisticId ? created : note));
+      return true;
+    } catch {
+      setNotes((current) => current.filter((note) => note.id !== optimisticId));
+      return false;
+    } finally {
+      addingNoteRef.current = false;
+      setIsAddingNote(false);
+    }
+  }, [selectedId]);
+
+  return { conversation, messages, notes, replyText, isLoading, isSending, isAddingNote,
+    retryingMessageIds, setReplyText, handleSendReply, handleRetryMessage,
+    handleAddNote, applyRealtimeMessage };
 }

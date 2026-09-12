@@ -2,7 +2,13 @@
 
 import { inboxConversationListService } from "@server/inbox/inbox-conversation-list.service";
 import { inboxChatPanelService } from "@server/inbox/inbox-chat-panel.service";
-import type { Conversation, FollowUpType, Message } from "@core/contracts";
+import type {
+  Conversation,
+  ConversationNote,
+  ConversationStatus,
+  FollowUpType,
+  Message,
+} from "@core/contracts";
 
 export async function fetchConversationAction(id: string): Promise<Conversation | null> {
   return inboxConversationListService.fetchConversationById(id);
@@ -33,6 +39,16 @@ export async function scheduleFollowUpAction(
   await inboxChatPanelService.scheduleFollowUp(conversationId, message, delayHours, type);
 }
 
-export async function markAsResolvedAction(conversationId: string): Promise<void> {
-  await inboxChatPanelService.markAsResolved(conversationId);
+export async function updateConversationStatusAction(
+  conversationId: string,
+  status: ConversationStatus,
+): Promise<ConversationStatus> {
+  return inboxChatPanelService.updateConversationStatus(conversationId, status);
+}
+
+export async function addConversationNoteAction(
+  conversationId: string,
+  content: string,
+): Promise<ConversationNote> {
+  return inboxChatPanelService.addNote(conversationId, content);
 }

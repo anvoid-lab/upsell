@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ChannelContract } from "./channel.contract";
+import { ConversationNoteContract } from "./conversation-note.contract";
 import { ContactContract } from "./contact.contract";
 import { FollowUpContract } from "./follow-up.contract";
 import { MessageContract } from "./message.contract";
@@ -28,6 +29,12 @@ const docSchema = z.object({
 // Domain/UI shape — messages joined by service
 const entitySchema = docSchema.extend({
   messages: z.array(MessageContract.entitySchema).default([]),
+  notes: z.array(ConversationNoteContract.entitySchema).default([]),
+});
+
+const updateStatusRequestSchema = z.object({
+  conversation_id: z.string().min(1),
+  status: statusSchema,
 });
 
 // A linha crua que um evento Realtime (Postgres Changes) traz para esta
@@ -58,6 +65,7 @@ export const ConversationContract = {
   listRequestSchema,
   listResponseSchema,
   detailResponseSchema,
+  updateStatusRequestSchema,
 } as const;
 
 export type ConversationStatus = z.infer<typeof statusSchema>;

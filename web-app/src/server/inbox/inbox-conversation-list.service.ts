@@ -5,6 +5,7 @@ import {
   ConversationContract,
   type Conversation,
   type ConversationDoc,
+  type ConversationNote,
   type FollowUp,
   type Message,
 } from "@core/contracts";
@@ -23,6 +24,11 @@ class InboxConversationListService {
 
   private readonly followUps = new BaseRepository<FollowUp>({
     table: "follow_ups",
+    client: createSupabaseServerClient,
+  });
+
+  private readonly notes = new BaseRepository<ConversationNote>({
+    table: "conversation_notes",
     client: createSupabaseServerClient,
   });
 
@@ -48,17 +54,21 @@ class InboxConversationListService {
   }
 
   async fetchConversationById(id: string): Promise<Conversation | null> {
-    const [doc, msgs, followUps] = await Promise.all([
+    const [doc, msgs, followUps, notes] = await Promise.all([
       this.conversations.findById<ConversationDoc>(id),
       this.messages.findAll<Message>({
         filters: { conversation_id: id } as Partial<Message>,
         orderBy: { column: "timestamp", ascending: true },
       }),
       this.followUps.findAll<FollowUp>({ filters: { conversation_id: id } as Partial<FollowUp> }),
+      this.notes.findAll<ConversationNote>({
+        filters: { conversation_id: id } as Partial<ConversationNote>,
+        orderBy: { column: "created_at", ascending: false },
+      }),
     ]);
     if (!doc) return null;
     return ConversationContract.detailResponseSchema.parse({
-      conversation: { ...doc, follow_ups: followUps, messages: msgs },
+      conversation: { ...doc, follow_ups: followUps, messages: msgs, notes },
     }).conversation;
   }
 

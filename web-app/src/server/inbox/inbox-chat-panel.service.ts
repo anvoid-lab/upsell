@@ -2,11 +2,15 @@ import "server-only";
 
 import { BaseRepository } from "@core/repository";
 import {
+  ConversationContract,
+  ConversationNoteContract,
   FollowUpContract,
   InboxProviderError,
   MessageContract,
   validateContract,
   type ConversationDoc,
+  type ConversationNote,
+  type ConversationStatus,
   type FollowUp,
   type FollowUpType,
   type Message,
@@ -22,6 +26,11 @@ class InboxChatPanelService {
 
   private readonly followUps = new BaseRepository<FollowUp>({
     table: "follow_ups",
+    client: createSupabaseServerClient,
+  });
+
+  private readonly notes = new BaseRepository<ConversationNote>({
+    table: "conversation_notes",
     client: createSupabaseServerClient,
   });
 
@@ -123,8 +132,48 @@ class InboxChatPanelService {
     });
   }
 
-  async markAsResolved(conversationId: string): Promise<void> {
-    await this.conversations.update(conversationId, { status: "resolved" } as Partial<ConversationDoc>);
+  async updateConversationStatus(
+    conversationId: string,
+    status: ConversationStatus,
+  ): Promise<ConversationStatus> {
+    validateContract(
+      ConversationContract.updateStatusRequestSchema,
+      { conversation_id: conversationId, status },
+      "InboxChatPanelService.updateConversationStatus",
+    );
+    await this.requireAuthenticatedUser();
+    const updated = await this.conversations.update<ConversationDoc>(conversationId, { status });
+    if (!updated) throw new Error("Conversation not found.");
+    return ConversationContract.statusSchema.parse(updated.status);
+  }
+
+  async addNote(conversationId: string, content: string): Promise<ConversationNote> {
+    const request = validateContract(
+      ConversationNoteContract.createRequestSchema,
+      { conversation_id: conversationId, content },
+      "InboxChatPanelService.addNote",
+    );
+    const userId = await this.requireAuthenticatedUser();
+    const conversation = await this.conversations.findById<ConversationDoc>(conversationId);
+    if (!conversation) throw new Error("Conversation not found.");
+
+    const created = await this.notes.create<ConversationNote>({
+      conversation_id: request.conversation_id,
+      author_id: userId,
+      content: request.content,
+    });
+    return validateContract(
+      ConversationNoteContract.entitySchema,
+      created,
+      "InboxChatPanelService.addNote.response",
+    );
+  }
+
+  private async requireAuthenticatedUser(): Promise<string> {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) throw error ?? new Error("Authentication required.");
+    return data.user.id;
   }
 
   private async resolveDelivery(conversationId: string): Promise<{

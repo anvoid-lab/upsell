@@ -9,6 +9,7 @@ export type {
   Conversation,
   ConversationDataPoint,
   ConversationDoc,
+  ConversationNote,
   ConversationRealtimeRow,
   ConversationStatus,
   FollowUp,

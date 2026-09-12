@@ -13,6 +13,7 @@ import { InboxDetailsPanel } from './inbox-details-panel';
 import { useChatPanel } from './inbox-chat-panel.hook';
 import { useRealtimeInbox } from './use-realtime-inbox.hook';
 import { IntegrationView } from '@/app/inbox/integration/integration-view';
+import { updateConversationStatusAction } from './actions';
 
 interface InboxViewProps {
   initialConversations: Conversation[];
@@ -65,7 +66,7 @@ export function InboxView({ initialConversations }: InboxViewProps) {
         if (index === -1) {
           // A new conversation receives its messages and follow-ups when opened
           // or through Realtime if it is already selected.
-          return [{ ...incoming, messages: [], follow_ups: [] }, ...prev];
+          return [{ ...incoming, messages: [], follow_ups: [], notes: [] }, ...prev];
         }
         const next = [...prev];
         // Preserve related data that is not included in the Realtime row.
@@ -73,6 +74,7 @@ export function InboxView({ initialConversations }: InboxViewProps) {
           ...incoming,
           messages: prev[index].messages,
           follow_ups: prev[index].follow_ups,
+          notes: prev[index].notes,
         };
         return next;
       });
@@ -85,12 +87,36 @@ export function InboxView({ initialConversations }: InboxViewProps) {
     onConversationChange: handleConversationChange,
   });
 
-  const handleStatusChange = (id: string, status: ConversationStatus) => {
+  const handleStatusChange = async (
+    id: string,
+    status: ConversationStatus,
+  ): Promise<boolean> => {
+    const previousStatus =
+      statusOverrides[id] ?? conversations.find((conversation) => conversation.id === id)?.status;
     setStatusOverrides((prev) => ({ ...prev, [id]: status }));
+    try {
+      const persistedStatus = await updateConversationStatusAction(id, status);
+      setConversations((current) => current.map((conversation) =>
+        conversation.id === id ? { ...conversation, status: persistedStatus } : conversation,
+      ));
+      setStatusOverrides((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      return true;
+    } catch {
+      setStatusOverrides((current) => {
+        const next = { ...current };
+        if (previousStatus) next[id] = previousStatus;
+        else delete next[id];
+        return next;
+      });
+      return false;
+    }
   };
 
   const handleClose = () => {
-    if (selectedId) handleStatusChange(selectedId, 'resolved');
     setSelectedId(null);
   };
 
@@ -110,7 +136,12 @@ export function InboxView({ initialConversations }: InboxViewProps) {
         onStatusChange={handleStatusChange}
         onClose={handleClose}
       />
-      <InboxDetailsPanel conversation={chatPanel.conversation} />
+      <InboxDetailsPanel
+        conversation={chatPanel.conversation}
+        notes={chatPanel.notes}
+        isAddingNote={chatPanel.isAddingNote}
+        onAddNote={chatPanel.handleAddNote}
+      />
     </>
   );
 }

@@ -2,6 +2,7 @@ export * from "./analytics.contract";
 export * from "./channel.contract";
 export * from "./contact.contract";
 export * from "./conversation.contract";
+export * from "./conversation-note.contract";
 export * from "./follow-up.contract";
 export * from "./inbox.contract";
 export * from "./message.contract";

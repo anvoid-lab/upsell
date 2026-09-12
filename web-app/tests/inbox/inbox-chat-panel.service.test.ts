@@ -8,6 +8,7 @@ const {
   storedMessage,
   writes,
   conversationLookupError,
+  authenticatedUser,
 } = vi.hoisted(() => ({
   events: [] as string[],
   providerSend: vi.fn(),
@@ -15,6 +16,7 @@ const {
   storedMessage: { value: null as null | Record<string, unknown> },
   writes: vi.fn(),
   conversationLookupError: { value: null as null | { code: string; message: string } },
+  authenticatedUser: { value: "33333333-3333-4333-8333-333333333333" as string | null },
 }));
 
 vi.mock("@server/inbox/inbox.service", () => ({
@@ -32,10 +34,11 @@ vi.mock("@core/repository", () => ({
     constructor(private options: { table: string }) {}
     async create(data: Record<string, unknown>) {
       writes(this.options.table, "create", data);
-      return { id: "201", ...data };
+      return { id: "201", created_at: new Date(), ...data };
     }
     async update(id: string, data: Record<string, unknown>) {
       writes(this.options.table, "update", { id, ...data });
+      return { id, ...data };
     }
     async findById() { return { contact: { name: "Customer" } }; }
   },
@@ -49,6 +52,12 @@ import { inboxChatPanelService } from "../../src/server/inbox/inbox-chat-panel.s
 
 function createDatabase() {
   return {
+    auth: {
+      getUser: vi.fn(async () => ({
+        data: { user: authenticatedUser.value ? { id: authenticatedUser.value } : null },
+        error: null,
+      })),
+    },
     from(table: string) {
       const filters: Record<string, unknown> = {};
       let acceptedStatuses: string[] | null = null;
@@ -143,6 +152,7 @@ describe("manual message delivery", () => {
     events.length = 0;
     storedMessage.value = null;
     conversationLookupError.value = null;
+    authenticatedUser.value = "33333333-3333-4333-8333-333333333333";
     providerSend.mockResolvedValue({ externalMessageId: "provider-message-1" });
   });
 
@@ -227,6 +237,46 @@ describe("manual message delivery", () => {
     expect(writes).toHaveBeenCalledExactlyOnceWith("follow_ups", "create", expect.objectContaining({
       conversation_id: "42", message: "Following up", status: "scheduled", type: "upsell",
     }));
+  });
+
+  it("persists a validated conversation status", async () => {
+    await expect(inboxChatPanelService.updateConversationStatus("42", "resolved"))
+      .resolves.toBe("resolved");
+    expect(writes).toHaveBeenCalledWith("conversations", "update", {
+      id: "42",
+      status: "resolved",
+    });
+  });
+
+  it("rejects an invalid conversation status before writing", async () => {
+    await expect(
+      inboxChatPanelService.updateConversationStatus("42", "closed" as "resolved"),
+    ).rejects.toThrow();
+    expect(writes).not.toHaveBeenCalled();
+  });
+
+  it("persists an internal note with the authenticated author", async () => {
+    const note = await inboxChatPanelService.addNote("42", "  Private context  ");
+
+    expect(note).toMatchObject({
+      id: "201",
+      conversation_id: "42",
+      author_id: authenticatedUser.value,
+      content: "Private context",
+    });
+    expect(writes).toHaveBeenCalledWith("conversation_notes", "create", {
+      conversation_id: "42",
+      author_id: authenticatedUser.value,
+      content: "Private context",
+    });
+    expect(providerSend).not.toHaveBeenCalled();
+  });
+
+  it("rejects notes without an authenticated user", async () => {
+    authenticatedUser.value = null;
+    await expect(inboxChatPanelService.addNote("42", "Private context"))
+      .rejects.toThrow("Authentication required");
+    expect(writes).not.toHaveBeenCalled();
   });
 
   it("rejects an empty reply before writing anything", async () => {

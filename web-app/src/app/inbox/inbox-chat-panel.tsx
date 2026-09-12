@@ -17,7 +17,6 @@ import {
   RotateCcw,
   ChevronDown,
   FileText,
-  UserPlus,
   Hash,
   Link,
   X,
@@ -47,12 +46,6 @@ import { useConfirmToast } from '@/components/shared/confirm-toast';
 import type { UseChatPanelReturn } from './inbox-chat-panel.hook';
 
 // ─── Static data ──────────────────────────────────────────────────────────────
-
-const TEAM_MEMBERS = [
-  { id: '1', name: 'Sofia Dias', initials: 'SD' },
-  { id: '2', name: 'Bruno Santos', initials: 'BS' },
-  { id: '3', name: 'Ana Ferreira', initials: 'AF' },
-];
 
 const TEMPLATES = [
   {
@@ -158,7 +151,7 @@ interface InboxChatPanelProps {
   selectedId: string | null;
   /** Detido pelo InboxView — uma instância só, partilhada com o painel de detalhes. */
   chatPanel: UseChatPanelReturn;
-  onStatusChange?: (id: string, status: ConversationStatus) => void;
+  onStatusChange?: (id: string, status: ConversationStatus) => Promise<boolean>;
   onClose?: () => void;
 }
 
@@ -174,16 +167,20 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     replyText,
     isLoading,
     isSending,
+    isAddingNote,
     retryingMessageIds,
     setReplyText,
     handleSendReply,
     handleRetryMessage,
+    handleAddNote,
   } = chatPanel;
 
   const { show: showConfirm } = useConfirmToast();
 
   const [convStatus, setConvStatus] = useState<ConversationStatus>('open');
-  const [assignedTo, setAssignedTo] = useState<string | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [noteError, setNoteError] = useState<string | null>(null);
   const [replyMode, setReplyMode] = useState<'reply' | 'note'>('reply');
   const [showTemplates, setShowTemplates] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -211,16 +208,35 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     setIsEditingSuggestion(false);
   }, [suggestion]);
 
-  const handleStatusChange = (newStatus: ConversationStatus) => {
+  const handleStatusChange = async (newStatus: ConversationStatus): Promise<boolean> => {
+    if (!selectedId || isUpdatingStatus) return false;
+    if (newStatus === convStatus) return true;
+    const previousStatus = convStatus;
     setConvStatus(newStatus);
-    if (selectedId) onStatusChange?.(selectedId, newStatus);
+    setStatusError(null);
+    setIsUpdatingStatus(true);
+    try {
+      const persisted = await onStatusChange?.(selectedId, newStatus);
+      if (persisted === false) throw new Error("Status persistence failed.");
+      return true;
+    } catch {
+      setConvStatus(previousStatus);
+      setStatusError('Status could not be saved. Try again.');
+      return false;
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
   const handleRequestClose = () => {
     showConfirm({
       message: 'Close this conversation? It will be marked as resolved.',
       confirmLabel: 'Confirm',
-      onConfirm: () => onClose?.(),
+      onConfirm: () => {
+        void handleStatusChange('resolved').then((saved) => {
+          if (saved) onClose?.();
+        });
+      },
     });
   };
 
@@ -264,8 +280,20 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
       t.label.toLowerCase().includes(templateQuery) ||
       t.text.toLowerCase().includes(templateQuery),
   );
-  const assignedMember = TEAM_MEMBERS.find((m) => m.id === assignedTo);
   const groups = groupMessagesByDate(messages);
+
+  const handleComposerSubmit = async () => {
+    if (replyMode === 'reply') {
+      await handleSendReply();
+      return;
+    }
+    const content = replyText.trim();
+    if (!content) return;
+    setNoteError(null);
+    const saved = await handleAddNote(content);
+    if (saved) setReplyText('');
+    else setNoteError('Note could not be saved. Your text was preserved.');
+  };
 
   if (!selectedId)
     return (
@@ -317,6 +345,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
+              disabled={isUpdatingStatus}
               className={cn(
                 'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors',
                 STATUS_STYLES[convStatus],
@@ -331,7 +360,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
               (s) => (
                 <DropdownMenuItem
                   key={s}
-                  onClick={() => handleStatusChange(s)}
+                  disabled={isUpdatingStatus}
+                  onClick={() => void handleStatusChange(s)}
                   className={cn('text-xs', convStatus === s && 'font-semibold')}
                 >
                   <span
@@ -343,59 +373,6 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   {STATUS_LABELS[s]}
                 </DropdownMenuItem>
               ),
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Assign */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-200 text-neutral-500 hover:border-neutral-300 transition-colors">
-              {assignedMember ? (
-                <>
-                  <span className="w-4 h-4 rounded-full bg-primary-100 text-primary-600 text-[9px] font-bold flex items-center justify-center">
-                    {assignedMember.initials}
-                  </span>
-                  {assignedMember.name.split(' ')[0]}
-                </>
-              ) : (
-                <>
-                  <UserPlus className="w-3 h-3" /> Assign
-                </>
-              )}
-              <ChevronDown className="w-3 h-3 opacity-60" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[160px]">
-            <p className="px-2 py-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
-              Assign to
-            </p>
-            <DropdownMenuSeparator />
-            {TEAM_MEMBERS.map((m) => (
-              <DropdownMenuItem
-                key={m.id}
-                onClick={() => setAssignedTo(m.id)}
-                className={cn(
-                  'text-xs',
-                  assignedTo === m.id && 'font-semibold',
-                )}
-              >
-                <span className="w-5 h-5 rounded-full bg-neutral-100 text-neutral-600 text-[9px] font-bold flex items-center justify-center mr-2">
-                  {m.initials}
-                </span>
-                {m.name}
-              </DropdownMenuItem>
-            ))}
-            {assignedTo && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setAssignedTo(null)}
-                  className="text-xs text-neutral-400"
-                >
-                  Unassign
-                </DropdownMenuItem>
-              </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -437,6 +414,12 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
           Close
         </Button>
       </div>
+
+      {statusError && (
+        <div role="alert" className="border-b border-red-100 bg-red-50 px-4 py-1.5 text-xs text-red-700">
+          {statusError}
+        </div>
+      )}
 
       {/* ── Messages ── */}
       <div className="flex-1 overflow-auto px-5 py-5 flex flex-col gap-0 bg-neutral-50/40">
@@ -637,7 +620,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             onChange={handleTextChange}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey))
-                handleSendReply();
+                  void handleComposerSubmit();
             }}
             onBlur={() =>
               setTimeout(() => {
@@ -751,8 +734,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 </button>
               </div>
               <Button
-                onClick={handleSendReply}
-                disabled={!replyText.trim() || isSending}
+                onClick={() => void handleComposerSubmit()}
+                disabled={!replyText.trim() || isSending || isAddingNote}
                 size="sm"
                 className={cn(
                   'rounded-full h-7 px-4 text-xs',
@@ -760,14 +743,21 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                      'bg-neutral-700 hover:bg-neutral-800 text-neutral-50',
                 )}
               >
-                {isSending
-                  ? 'Sending…'
+                {isAddingNote
+                  ? 'Saving…'
+                  : isSending
+                    ? 'Sending…'
                   : replyMode === 'note'
                     ? 'Add note'
                     : 'Send'}
               </Button>
             </div>
           </div>
+          {noteError && (
+            <p role="alert" className="px-3 pb-2 text-xs text-red-600">
+              {noteError}
+            </p>
+          )}
         </div>
       </div>
     </div>

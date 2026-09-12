@@ -26,12 +26,16 @@ const hasCredentials = Boolean(url && publishableKey && secretKey);
 describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
   const email = `vitest-rls-${randomUUID()}@example.test`;
   const password = randomUUID() + randomUUID();
+  const secondEmail = `vitest-rls-${randomUUID()}@example.test`;
+  const secondPassword = randomUUID() + randomUUID();
 
   let admin: SupabaseClient;
   let tenant: SupabaseClient;
   let userId: string;
+  let secondUserId: string;
   let ownBusinessId: string;
-  let foreignBusinessId: string | null = null;
+  let foreignBusinessId: string;
+  let foreignConversationId: string;
 
   beforeAll(async () => {
     admin = createClient(url!, secretKey!, { auth: { persistSession: false } });
@@ -59,14 +63,44 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
     }
     ownBusinessId = profile.business_id as string;
 
-    const { data: otherBusiness } = await admin
-      .from("businesses")
+    const { data: secondCreated, error: secondCreateErr } =
+      await admin.auth.admin.createUser({
+        email: secondEmail,
+        password: secondPassword,
+        email_confirm: true,
+        user_metadata: { business_name: `Vitest RLS Tenant ${randomUUID().slice(0, 8)}` },
+      });
+    if (secondCreateErr || !secondCreated.user) {
+      throw new Error(`Failed to create second test user: ${secondCreateErr?.message}`);
+    }
+    secondUserId = secondCreated.user.id;
+
+    const { data: secondProfile, error: secondProfileErr } = await admin
+      .from("profiles")
+      .select("business_id")
+      .eq("id", secondUserId)
+      .single();
+    if (secondProfileErr || !secondProfile) {
+      throw new Error(`Second test user has no profile: ${secondProfileErr?.message}`);
+    }
+    foreignBusinessId = secondProfile.business_id as string;
+
+    const { data: foreignConversation, error: foreignConversationErr } = await admin
+      .from("conversations")
+      .insert({
+        business_id: foreignBusinessId,
+        contact: {},
+        last_message: "foreign conversation",
+        last_message_at: new Date().toISOString(),
+        status: "open",
+        unread: false,
+      })
       .select("id")
-      .neq("id", ownBusinessId)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    foreignBusinessId = (otherBusiness?.id as string) ?? null;
+      .single();
+    if (foreignConversationErr || !foreignConversation) {
+      throw new Error(`Failed to create foreign conversation: ${foreignConversationErr?.message}`);
+    }
+    foreignConversationId = String(foreignConversation.id);
 
     tenant = createClient(url!, publishableKey!, { auth: { persistSession: false } });
     const { error: signInErr } = await tenant.auth.signInWithPassword({ email, password });
@@ -77,7 +111,9 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
     // Apagar o business em cascata remove profiles e todas as linhas de
     // domínio ligadas a ele (ver migração 003); depois remove-se o utilizador.
     if (ownBusinessId) await admin.from("businesses").delete().eq("id", ownBusinessId);
+    if (foreignBusinessId) await admin.from("businesses").delete().eq("id", foreignBusinessId);
     if (userId) await admin.auth.admin.deleteUser(userId);
+    if (secondUserId) await admin.auth.admin.deleteUser(secondUserId);
   });
 
   it("starts with zero rows in every domain table", async () => {
@@ -86,6 +122,7 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
       "messages",
       "follow_ups",
       "channels",
+      "conversation_notes",
     ] as const;
 
     for (const table of tables) {
@@ -96,19 +133,11 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
   });
 
   it("cannot see another business's row by id, even when it knows the id", async () => {
-    if (!foreignBusinessId) {
-      console.warn("Skipping: no second business exists in this project to test against.");
-      return;
-    }
     const { data } = await tenant.from("businesses").select("id").eq("id", foreignBusinessId);
     expect(data).toEqual([]);
   });
 
   it("cannot insert a row into another business", async () => {
-    if (!foreignBusinessId) {
-      console.warn("Skipping: no second business exists in this project to test against.");
-      return;
-    }
     // id é bigint "generated always as identity" (migração 004) — nunca se
     // especifica no insert, a BD gera-o sozinha.
     const { error } = await tenant.from("conversations").insert({
@@ -148,5 +177,61 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
       .single();
     expect(readErr).toBeNull();
     expect(data?.business_id).toBe(ownBusinessId);
+  });
+
+  it("persists conversation status and notes inside its own business", async () => {
+    const { data: conversation, error: conversationError } = await tenant
+      .from("conversations")
+      .insert({
+        contact: {},
+        last_message: "note owner",
+        last_message_at: new Date().toISOString(),
+        status: "open",
+        unread: false,
+      })
+      .select("id")
+      .single();
+    expect(conversationError).toBeNull();
+
+    const { error: statusError } = await tenant
+      .from("conversations")
+      .update({ status: "resolved" })
+      .eq("id", conversation!.id);
+    expect(statusError).toBeNull();
+
+    const { data: note, error: noteError } = await tenant
+      .from("conversation_notes")
+      .insert({ conversation_id: conversation!.id, content: "Private context" })
+      .select("conversation_id, business_id, author_id, content")
+      .single();
+    expect(noteError).toBeNull();
+    expect(note).toMatchObject({
+      conversation_id: conversation!.id,
+      business_id: ownBusinessId,
+      author_id: userId,
+      content: "Private context",
+    });
+
+    const { data: refreshed } = await tenant
+      .from("conversations")
+      .select("status")
+      .eq("id", conversation!.id)
+      .single();
+    expect(refreshed?.status).toBe("resolved");
+  });
+
+  it("cannot attach a note to another business's conversation", async () => {
+    const { error } = await tenant.from("conversation_notes").insert({
+      conversation_id: foreignConversationId,
+      content: "cross-tenant note attempt",
+    });
+    expect(error).not.toBeNull();
+    expect(error!.message).toMatch(/row-level security/i);
+
+    const { data } = await tenant
+      .from("conversation_notes")
+      .select("id")
+      .eq("conversation_id", foreignConversationId);
+    expect(data).toEqual([]);
   });
 });

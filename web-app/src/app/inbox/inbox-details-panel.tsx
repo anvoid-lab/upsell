@@ -1,7 +1,7 @@
 'use client';
 
-import { FC, useState } from 'react';
-import { AlertTriangle, CalendarPlus, X } from 'lucide-react';
+import { FC, useEffect, useState } from 'react';
+import { AlertTriangle, CalendarPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,24 +15,24 @@ import {
 import { cn } from '@/lib/utils';
 import { formatDate, formatRelative } from '@/lib/format';
 import { SectionLabel } from '@/components/shared/section-label';
-import type { Conversation, FollowUp } from '@/types';
-
-interface Note {
-  id: string;
-  text: string;
-  createdAt: string;
-}
+import type { Conversation, ConversationNote, FollowUp } from '@/types';
 
 interface InboxDetailsPanelProps {
   conversation: Conversation | null;
+  notes: ConversationNote[];
+  isAddingNote: boolean;
+  onAddNote: (content: string) => Promise<boolean>;
 }
 
 export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
   conversation,
+  notes,
+  isAddingNote,
+  onAddNote,
 }) => {
-  const [notes, setNotes] = useState<Note[]>([]);
   const [noteText, setNoteText] = useState('');
   const [noteSaved, setNoteSaved] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   // Só os follow-ups criados nesta sessão, por conversa. Os que vêm da BD são
   // lidos das props — copiá-los para estado inicial deixava-os presos ao
@@ -48,17 +48,20 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
       ]
     : [];
 
-  const handleSaveNote = () => {
+  useEffect(() => {
+    setNoteText('');
+    setNoteSaved(false);
+    setNoteError(null);
+  }, [conversation?.id]);
+
+  const handleSaveNote = async () => {
     if (!noteText.trim()) return;
-    const note: Note = {
-      id: `n-${Date.now()}`,
-      text: noteText.trim(),
-      createdAt: new Date().toLocaleTimeString('en-GB', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    };
-    setNotes((prev) => [note, ...prev]);
+    setNoteError(null);
+    const saved = await onAddNote(noteText);
+    if (!saved) {
+      setNoteError('Note could not be saved. Your text was preserved.');
+      return;
+    }
     setNoteText('');
     setNoteSaved(true);
     setTimeout(() => setNoteSaved(false), 2500);
@@ -233,21 +236,11 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                   className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 relative group"
                 >
                   <p className="text-xs text-neutral-700 leading-relaxed">
-                    {note.text}
+                    {note.content}
                   </p>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-neutral-400">
-                      {note.createdAt}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setNotes((prev) => prev.filter((n) => n.id !== note.id))
-                      }
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-neutral-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
+                  <p className="mt-1 text-[10px] text-neutral-400" suppressHydrationWarning>
+                    You · {note.id.startsWith('pending-note:') ? 'Saving…' : formatRelative(note.created_at)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -264,11 +257,11 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
           <div className="mt-2 flex items-center gap-2">
             <Button
               size="sm"
-              onClick={handleSaveNote}
-              disabled={!noteText.trim()}
+              onClick={() => void handleSaveNote()}
+              disabled={!noteText.trim() || isAddingNote}
               className="rounded-full h-7 px-4 text-xs flex-1"
             >
-              Save note
+              {isAddingNote ? 'Saving…' : 'Save note'}
             </Button>
             {noteSaved && (
               <span className="text-xs text-primary-600 font-medium flex items-center gap-1 flex-shrink-0">
@@ -277,6 +270,11 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
               </span>
             )}
           </div>
+          {noteError && (
+            <p role="alert" className="mt-2 text-xs text-red-600">
+              {noteError}
+            </p>
+          )}
         </div>
       </aside>
 
