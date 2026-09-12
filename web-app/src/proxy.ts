@@ -2,28 +2,26 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 /**
- * A sessão Supabase é a única fonte de verdade de autenticação.
+ * The Supabase session is the only source of truth for authentication.
  *
- * Existia antes um cookie próprio (`vendai_session`) em paralelo. Ter duas
- * camadas era a causa de um modo de falha silencioso: o cookie dizia
- * "autenticado", o Supabase não conhecia a sessão, e o RLS devolvia zero linhas
- * — a app aparecia vazia em vez de mandar o utilizador para o login.
+ * A separate `vendai_session` cookie previously existed in parallel. Having two
+ * layers caused a silent failure mode: the cookie reported an authenticated
+ * user while Supabase did not know the session, so RLS returned no rows and the
+ * app appeared empty instead of redirecting the user to login.
  */
 export async function proxy(request: NextRequest) {
-  // Webhooks de canais (chamados por um provider) e endpoints internos
-  // (chamados pelo pg_cron — migração 008) não trazem sessão de utilizador e
-  // não podem ser redirecionados para /login. Sai antes de getUser() para não
-  // pagar uma ida ao servidor de auth nestas chamadas — cada rota autentica-se
-  // à sua maneira (assinatura HMAC no webhook, segredo partilhado nos jobs).
+  // Provider webhooks and internal endpoints called by pg_cron do not carry a
+  // user session and cannot be redirected to /login. Return before getUser() to
+  // avoid an authentication server request; each route authenticates itself.
   if (
-    request.nextUrl.pathname.startsWith("/api/webhooks") ||
+    (request.method === "POST" && request.nextUrl.pathname === "/inbox/webhooks/channel") ||
     request.nextUrl.pathname.startsWith("/api/jobs")
   ) {
     return NextResponse.next({ request });
   }
 
-  // O cliente pode precisar de renovar o token, e essa renovação tem de ser
-  // escrita de volta na resposta — daí construir a resposta antes.
+  // The client may refresh its token, and that refresh must be written back to
+  // the response, so create the response first.
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -45,8 +43,8 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // getUser() valida o token no servidor de auth. getSession() apenas lê o
-  // cookie e confiaria em algo que o cliente pode ter forjado.
+  // getUser() validates the token with the auth server. getSession() only reads
+  // the cookie and would trust a value that the client could have forged.
   const {
     data: { user },
   } = await supabase.auth.getUser();

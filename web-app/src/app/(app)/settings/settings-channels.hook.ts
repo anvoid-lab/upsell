@@ -1,29 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChannelConnection } from "@/types";
-import { connectChannelAction, disconnectChannelAction } from "./actions";
+import { disconnectChannelAction, syncInboxHistoryAction } from "./actions";
 
 interface UseSettingsReturn {
   channels: ChannelConnection[];
-  handleConnect: (platform: string) => Promise<void>;
   handleDisconnect: (platform: string) => Promise<void>;
+  handleSync: (platform: string) => Promise<void>;
+  syncing: string | null;
+  error: string | null;
 }
 
 export function useSettings(
   initialChannels: ChannelConnection[],
 ): UseSettingsReturn {
   const [channels, setChannels] = useState<ChannelConnection[]>(initialChannels);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => setChannels(initialChannels), [initialChannels]);
 
-  const handleConnect = async (platform: string) => {
-    await connectChannelAction(platform);
-    setChannels((prev) =>
-      prev.map((c) =>
-        c.platform === platform
-          ? { ...c, connected: true, account_name: "Connected account", connected_at: new Date() }
-          : c,
-      ),
-    );
+  const handleSync = async (platform: string) => {
+    if (syncing) return;
+    setSyncing(platform);
+    setError(null);
+    try { await syncInboxHistoryAction(platform); }
+    catch { setError("History import failed. Please try again."); }
+    finally { setSyncing(null); }
   };
 
   const handleDisconnect = async (platform: string) => {
@@ -39,7 +42,9 @@ export function useSettings(
 
   return {
     channels,
-    handleConnect,
     handleDisconnect,
+    handleSync,
+    syncing,
+    error,
   };
 }

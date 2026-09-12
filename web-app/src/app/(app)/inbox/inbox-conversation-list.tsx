@@ -20,6 +20,7 @@ import { STATUS_DOT } from '@/styles/design-tokens';
 import { useConversationList } from './inbox-conversation-list.hook';
 
 interface InboxConversationListProps {
+  onConnect: () => void;
   selectedId: string | null;
   onSelect: (id: string) => void;
   statusOverrides?: Record<string, ConversationStatus>;
@@ -29,6 +30,7 @@ interface InboxConversationListProps {
 const MAX_RECENT = 5;
 
 export const InboxConversationList: FC<InboxConversationListProps> = ({
+  onConnect,
   selectedId,
   onSelect,
   statusOverrides = {},
@@ -115,6 +117,9 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
               variant="ghost"
               size="icon"
               className="w-7 h-7 rounded-full"
+              aria-label="Connect WhatsApp"
+              title="Connect WhatsApp"
+              onClick={onConnect}
             >
               <Settings className="w-3.5 h-3.5 text-neutral-400" />
             </Button>
@@ -333,9 +338,7 @@ const ConversationRow: FC<{
             </Badge>
           )}
           {unread && (
-            // A linha em si não anima ao subir na lista: reordenar não é a
-            // mesma coisa que aparecer, e animar cada reordenação faria a
-            // lista inteira piscar. O que é novo é o ponto.
+            // Animate only the unread dot so reordering does not flash the list.
             <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT.open} ml-auto flex-shrink-0 animate-fade-in motion-reduce:animate-none`} />
           )}
         </div>

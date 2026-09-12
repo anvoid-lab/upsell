@@ -1,6 +1,7 @@
 "use client";
 
-import { FC } from "react";
+import { FC, useState } from "react";
+import { IntegrationView } from "@/app/inbox/integration/integration-view";
 import { MessageCircle, Camera, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -9,6 +10,7 @@ import { formatDate } from "@/lib/format";
 import { useSettings } from "./settings-channels.hook";
 import type { ChannelConnection, AISettings } from "@/types";
 import { AI_FEATURES_ENABLED, DEFAULT_AI_SETTINGS } from "@/lib/ai-features";
+import type { InboxChannel } from "@core/contracts/inbox.contract";
 
 const PLATFORM_INFO = {
   whatsapp: { label: "WhatsApp Business", icon: MessageCircle, color: "bg-emerald-50 border-emerald-100", iconColor: "text-emerald-600" },
@@ -21,7 +23,8 @@ interface SettingsContentProps {
 }
 
 export const SettingsContent: FC<SettingsContentProps> = ({ initialChannels }) => {
-  const { channels, handleConnect, handleDisconnect } = useSettings(initialChannels);
+  const { channels, handleDisconnect, handleSync, syncing, error } = useSettings(initialChannels);
+  const [integrating, setIntegrating] = useState<InboxChannel | null>(null);
   // Archived presentation only: these controls have no persistence or actions.
   const aiSettings = DEFAULT_AI_SETTINGS;
   const isSaving = false;
@@ -31,6 +34,7 @@ export const SettingsContent: FC<SettingsContentProps> = ({ initialChannels }) =
 
   return (
     <div className="flex-1 overflow-auto bg-zinc-50/50">
+      {integrating && <IntegrationView channel={integrating} onClose={() => setIntegrating(null)} />}
       <div className="max-w-2xl mx-auto px-8 py-8">
         <h1 className="text-lg font-semibold text-zinc-900 mb-0.5">Settings</h1>
         <p className="text-sm text-zinc-400 mb-8">
@@ -39,16 +43,19 @@ export const SettingsContent: FC<SettingsContentProps> = ({ initialChannels }) =
             : "Manage your connected channels"}
         </p>
 
+        {error && <p role="alert" className="text-sm text-red-600 mb-4">{error}</p>}
         {/* Channels */}
         <section className="mb-8">
           <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-3">Connected channels</h2>
           <div className="space-y-2">
-            {channels.map((ch) => (
+            {channels.filter((ch) => ch.platform === "whatsapp" || ch.platform === "instagram").map((ch) => (
               <ChannelCard
                 key={ch.platform}
                 channel={ch}
-                onConnect={() => handleConnect(ch.platform)}
+                onConnect={() => setIntegrating(ch.platform as InboxChannel)}
                 onDisconnect={() => handleDisconnect(ch.platform)}
+                onSync={() => handleSync(ch.platform)}
+                syncing={syncing === ch.platform}
               />
             ))}
           </div>
@@ -140,8 +147,14 @@ export const SettingsContent: FC<SettingsContentProps> = ({ initialChannels }) =
   );
 };
 
-const ChannelCard: FC<{ channel: ChannelConnection; onConnect: () => void; onDisconnect: () => void }> = ({
-  channel, onConnect, onDisconnect,
+const ChannelCard: FC<{
+  channel: ChannelConnection;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onSync: () => void;
+  syncing: boolean;
+}> = ({
+  channel, onConnect, onDisconnect, onSync, syncing,
 }) => {
   const info = PLATFORM_INFO[channel.platform];
   const Icon = info.icon;
@@ -155,18 +168,25 @@ const ChannelCard: FC<{ channel: ChannelConnection; onConnect: () => void; onDis
           <p className="text-sm font-medium text-zinc-800">{info.label}</p>
           {channel.connected
             ? <p className="text-xs text-zinc-400" suppressHydrationWarning>{channel.account_name}{channel.connected_at ? ` · Connected ${formatDate(channel.connected_at)}` : ""}</p>
-            : <p className="text-xs text-zinc-400">Not connected</p>
+            : <p className="text-xs text-zinc-400">{channel.connection_status === "reconnect_required" ? "Reconnect required" : "Not connected"}</p>
           }
         </div>
       </div>
-      <Button
-        onClick={channel.connected ? onDisconnect : onConnect}
-        variant={channel.connected ? "outline" : "default"}
-        size="sm"
-        className="rounded-full h-8 px-4 text-xs"
-      >
-        {channel.connected ? "Disconnect" : "Connect"}
-      </Button>
+      <div className="flex items-center gap-2">
+        {channel.connected && (
+          <Button variant="outline" size="sm" className="rounded-full h-8 px-4 text-xs" onClick={onSync} disabled={syncing}>
+            {syncing ? "Importing…" : "Import history"}
+          </Button>
+        )}
+        <Button
+          onClick={channel.connected ? onDisconnect : onConnect}
+          variant={channel.connected ? "outline" : "default"}
+          size="sm"
+          className="rounded-full h-8 px-4 text-xs"
+        >
+          {channel.connection_status === "reconnect_required" ? "Reconnect" : channel.connected ? "Disconnect" : "Connect"}
+        </Button>
+      </div>
     </div>
   );
 };

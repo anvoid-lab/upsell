@@ -7,6 +7,10 @@ const connectionSchema = z.object({
   connected: z.boolean(),
   account_name: z.string().nullish(),
   connected_at: z.coerce.date().nullish(),
+  provider: z.string().optional(),
+  connection_status: z.enum([
+    "disconnected", "connecting", "syncing", "connected", "reconnect_required", "error",
+  ]).optional(),
 });
 
 const connectRequestSchema = z.object({

@@ -76,12 +76,16 @@ Edit `src/lib/mock-data.ts` and swap the mock arrays for real API calls in the `
 
 ## Connect real channels
 
-Add your WhatsApp Business API, Meta Graph API credentials in environment variables:
+WhatsApp and Instagram are connected through Unipile Hosted Auth. Configure the
+server-only provider credentials and public callback URL:
 
 ```env
-WHATSAPP_ACCESS_TOKEN=
-INSTAGRAM_ACCESS_TOKEN=
-FACEBOOK_PAGE_ACCESS_TOKEN=
+INBOX_PROVIDER=unipile
+UNIPILE_API_URL=
+UNIPILE_API_KEY=
+UNIPILE_WEBHOOK_SECRET=
+INBOX_HOSTED_AUTH_SECRET=
+APP_URL=
 ```
 
 ## AI removed

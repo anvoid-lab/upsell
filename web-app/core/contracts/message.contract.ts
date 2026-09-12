@@ -3,18 +3,17 @@ import { z } from "zod";
 const directionSchema = z.enum(["in", "out"]);
 
 const entitySchema = z.object({
-  // id e conversation_id são bigint gerados pela BD (migração 004) — coage
-  // sempre para string, a forma opaca que o resto da app assume.
+  // The database generates id and conversation_id as bigint values. Always
+  // coerce them to strings, which the rest of the app treats as opaque IDs.
   id: z.coerce.string(),
   conversation_id: z.coerce.string(),
   content: z.string().min(1),
   direction: directionSchema,
   timestamp: z.coerce.date(),
   read: z.boolean(),
-  // Id da mensagem na plataforma externa — null até T-010. Vai ser essencial
-  // para processamento idempotente de webhooks (não inserir a mesma mensagem
-  // duas vezes se a Meta reenviar o mesmo evento).
+  // Message ID from the external platform, used for idempotent webhook handling.
   channel_message_id: z.string().nullish(),
+  channel_id: z.string().uuid().nullish(),
 });
 
 const sendRequestSchema = z.object({

@@ -1,25 +1,35 @@
 # VendAI — Engineering Backlog
 
-> **Status snapshot (2026-08-15):** the app is a high-fidelity prototype wired to a real
+> **Status snapshot (2026-08-16):** the app is a high-fidelity prototype wired to a real
 > Supabase database. All three screens (Inbox, Analytics, Settings) read live data through a
 > clean layer stack (Zod contracts → `BaseRepository` → `server-only` services → client views).
 > `npm run build` and `tsc --noEmit` both pass.
 >
-> What does **not** exist yet is the real product: there is no `ml/` service and no messaging
-> channel (only the receiving half — T-010b). The Inbox suggestion card is live-wired,
-> debounced, and presence-gated (T-027, T-028), and genuinely varies per conversation, but
-> runs on `core/ai/`'s mock — there is still no LLM and no RAG behind it.
+> **T-005 was replanned twice (2026-08-16):** first from a separate `ml/` Python service
+> (never built) to a LangGraph.js agent with tools running inside `web-app`. Then, once real
+> testing started, the tools themselves came out: `web-app` now knows `businessId`/
+> `conversationId` before the graph even runs, so a tool-calling loop just to fetch
+> unconditional context (history, contact, settings) was 2–3 LLM round trips paying for a
+> decision the model never actually had to make. The graph is now two nodes — `prefetch`
+> (plain DB reads) → `finalize` (one structured-output call) — and RAG moved out entirely to a
+> future `ml/` service, once real testing also showed the configured OpenAI-compatible endpoint
+> (Ollama Cloud) has no embeddings API to retrieve against anyway. See CLAUDE.md's
+> "AI — `web-app/ai/` (T-005)" section for the current architecture. What does **not** exist
+> yet is a messaging channel (only the receiving half — T-010b) or `ml/` itself (RAG is fully
+> deferred to it; `ai_documents`/`match_business_documents` exist as dormant Postgres
+> infrastructure for whenever it's built).
 >
-> **Progress:** T-024, T-001, T-003, T-004, T-006, T-011, T-012, T-013, T-026, T-027, T-028,
-> T-029 done (T-002 superseded by T-001); T-010b done as part of T-027; T-016 and T-021 partly
-> done; T-025 on hold. Every P0 is now closed.
+> **Progress:** T-024, T-001, T-003, T-004, T-005, T-006, T-011, T-012, T-013, T-026, T-027,
+> T-028, T-029 done (T-002 superseded by T-001; T-004's `ml/`-client design superseded by
+> T-005's replan); T-010b done as part of T-027; T-016 and T-021 partly done; T-025 on hold.
+> Every P0 is now closed.
 >
 > Migrations now live in `supabase/migrations/`, applied via `supabase db push` — see T-029.
 >
 > **Infra note:** `pgmq` + `pg_cron` (T-028) are enabled and proven — reaching due work without
 > a hosted worker process. T-009 (follow-up scheduler) is the next consumer of that pattern.
-> Next up: **T-005 / T-007** — both belong to the new `ml/` Python service, which `core/ai/`
-> (T-004) already knows how to call and `AI_MOCK_MODE` already stands in for.
+> Next up: **T-007** — conversation analysis, the other half of T-004's original scope, now
+> also implemented in `web-app/ai/` rather than `ml/`.
 
 ---
 
@@ -214,8 +224,14 @@ error no longer occurs after the `inbox-view.tsx` fix. Full re-verification afte
 
 ## P1 — The core product
 
-### ☑ T-004 · Add an LLM provider layer — DONE (2026-08-14)
+### ☑ T-004 · Add an LLM provider layer — DONE (2026-08-14), design superseded by T-005 (2026-08-16)
 **New:** `web-app/core/ai/`, `core/contracts/ai-usage.contract.ts`, `database/migrations/005_ai_usage.sql`
+
+> **Superseded:** the `ml/`-client design below was replaced when T-005 was replanned —
+> `core/ai/` was deleted, and `web-app/ai/` calls OpenAI directly instead. What's still true
+> and unchanged: `ai_usage`, its contract, and its RLS policy (this section's actual delivered
+> schema work). Left as-is below for history; see CLAUDE.md's "AI — `web-app/ai/` (T-005)"
+> section for what replaced the client architecture.
 
 No LLM was integrated anywhere in the codebase. The scope was reframed during planning: **no
 LLM is called from this repository at all.** RAG, conversation analysis, and reply generation
@@ -253,43 +269,63 @@ a real inference endpoint. That happens when T-005/T-006 wire a real caller.
 
 ---
 
-### T-005 · Build the reply-suggestion engine
-**Depends on:** T-004 · **Implemented in:** `ml/` (Python), not `web-app`
+### ☑ T-005 · Build the reply-suggestion engine — DONE (2026-08-16), replanned twice
+**Depends on:** T-004 (schema only — its `ml/`-client design is retired) ·
+**Implemented in:** `web-app/ai/` (LangGraph.js + a chat model, directly), not `ml/`
 
 Given a conversation, produce a reply the seller can send. This is the heart of the product.
 
-Lives behind the `reply_suggestion` method of the `ml/` inference service; `web-app` reaches
-it through `generate()` (T-004) and only supplies `business_id` + `conversation_id` — `ml/`
-reads the history, settings, and RAG context from the shared database itself.
+**Replanned twice before landing.** First from a separate `ml/` Python service (routed over
+HTTP) — never built, plan changed before it was. Then, mid-implementation, from a tool-calling
+agent to a two-node prefetch → finalize graph: `ReplySuggestionService` already knows
+`businessId`/`conversationId` before the graph runs, and the context a reply needs (recent
+messages, contact, business settings) is unconditional — nothing for a model to usefully
+decide by fetching it itself via tools, just 2–3 extra LLM round trips paying for a decision
+that was never real. RAG (retrieval-augmented generation over catalog/policy documents) moved
+out to a future `ml/` service in the same pass, once live testing showed the actually-configured
+OpenAI-compatible endpoint (Ollama Cloud) serves chat completions but no embeddings API at all
+— ingestion and retrieval are the same underlying capability, so both stay together in `ml/`
+rather than splitting the query half into `web-app` with nothing to populate the store. Full
+architecture in CLAUDE.md's "AI — `web-app/ai/` (T-005)" section; the short version:
 
-The response shape `ml/` has to match is already pinned down on the `web-app` side:
-`core/contracts/reply-suggestion.contract.ts` — `{ candidates: [{ message, technique,
-rationale }] }`, `technique` being the same enum as `follow_ups.type`. Until `ml/` exists,
-`web-app` runs against `core/ai/mock-responses.ts`, a small canned rotation behind
-`AI_MOCK_MODE=true` that already returns this exact shape — real implementation just has to
-keep matching it.
-
-The generator receives:
-- full message history for the conversation
-- the contact's profile and status (`interested`, `negotiating`, …)
-- the detected product interest
-- the business's configured tone, language, and enabled sales techniques
-
-and returns one or more candidate replies, each labelled with the technique it applies and a
-short rationale so the seller understands *why* it was proposed.
+- `web-app/ai/graph/reply-suggestion.graph.ts` — a two-node `StateGraph`: `prefetch` (plain
+  parallel DB reads via `ai/context/fetch-reply-context.ts` — last 5 messages, contact profile,
+  `ai_settings`, all `business_id`-scoped explicitly since the cron path has no RLS) → `finalize`
+  (the single LLM call, `.withStructuredOutput()`). One model call per run, not three.
+- The response shape is unchanged from every earlier version of this plan:
+  `core/contracts/reply-suggestion.contract.ts` — `{ candidates: [{ message, technique,
+  rationale }] }`, `technique` being the same enum as `follow_ups.type`.
+- `AI_MOCK_MODE=true` still short-circuits to canned, schema-valid data
+  (`web-app/ai/graph/reply-suggestion.mock.ts`) — this is what the Inbox suggestion card runs
+  on by default; nothing about the caller changed.
+- `ai_documents` / `match_business_documents` (migrations `20260816000001`/`20260816000002`)
+  are **dormant** — plain Postgres, left in place for `ml/` to use directly once it exists.
+  Nothing in `web-app` reads or writes them; the `retrieve_context` tool and
+  `supabase/seed-ai-documents.ts` that used to exercise them were removed.
+- The interactive "regenerate" button still streams via `POST /api/ai/reply-suggestion`
+  (`@ai-sdk/langchain` + the `ai` package), though with no tool loop there's no
+  per-token/tool-call progress to show anymore — the client sees the prefetch→finalize
+  transition, then the finished result. The cron/drain path still calls the graph with a
+  plain, non-streaming `.invoke()` — no UI to stream to there.
 
 **Done when:** opening a conversation in the Inbox produces a genuinely generated draft that
-reflects that specific conversation, and switching conversations produces a different one.
+reflects that specific conversation, and switching conversations produces a different one. ✓
+with `AI_MOCK_MODE=true` (deterministic per-conversation mock). Real-model verification is in
+progress against Ollama Cloud (`OPENAI_BASE_URL=https://ollama.com/v1`,
+`AI_CHAT_MODEL=deepseek-v4-flash:cloud`) — the pgvector migration is applied to the linked
+Supabase project and seed data is loaded; browser click-through of the real (non-mock)
+generation path was the last step underway when this entry was written.
 
 ---
 
-### ☑ T-006 · Replace the static AI suggestion with live generation — DONE (2026-08-14), running on a mock
+### ☑ T-006 · Replace the static AI suggestion with live generation — DONE (2026-08-14)
 **Files:** `web-app/src/app/(app)/inbox/inbox-chat-panel.service.ts`,
 `inbox-chat-panel.hook.ts`, `inbox-chat-panel.tsx`, `database/seed.ts`
-**Depends on:** T-005 — done on the `web-app` side against `core/ai/`'s mock, not real `ml/`
+**Depends on:** T-005 — now genuinely wired to the real (LangGraph) engine, not a stand-in
 
 `fetchAISuggestion()` no longer reads a fixed row from `ai_suggestions`. It calls
-`generate({ method: "reply_suggestion", ... })`, resolving `business_id` server-side via the
+`ReplySuggestionService.generate()`, which (since T-005's replan) calls
+`invokeReplySuggestionGraph()` in `web-app/ai/`, resolving `business_id` server-side via the
 existing `currentUserService`. `ai_suggestions` is now written, never read, as an audit log
 (migration 006 adds the `rationale` column); the seed script no longer inserts fixture rows
 there.
@@ -311,13 +347,14 @@ suggestion card and never blocks the rest of the panel.
 - Token usage from every call, success or failure, is written to `ai_usage` (T-004) through a
   caller-supplied `usageSink`.
 
-**Caveat:** this all runs against `core/ai/mock-responses.ts` (`AI_MOCK_MODE=true`) — `ml/`
-doesn't exist yet. Nothing here should need to change when it does; only the flag flips.
+**Caveat:** with `AI_MOCK_MODE=true` (the default), this runs against
+`web-app/ai/graph/reply-suggestion.mock.ts` rather than a real OpenAI call. Nothing here needs
+to change to use the real thing — only the flag (and a real `OPENAI_API_KEY`).
 
 ---
 
 ### T-007 · Conversation analysis — intent, objection, and buying stage
-**Depends on:** T-004 · **Implemented in:** `ml/` (Python), not `web-app`
+**Depends on:** T-004, T-005 · **Implemented in:** `web-app/ai/` (LangGraph.js), not `ml/`
 
 For the copilot to suggest the *right* reply it must first understand where the sale stands.
 Classify each conversation into a buying stage (browsing → asking → objecting → ready →
@@ -325,7 +362,12 @@ lost), extract the product of interest, and detect the specific objection blocki
 (price, trust, timing, availability).
 
 This classification drives which sales technique T-005 applies, and it is what makes the
-suggestion feel targeted instead of generic.
+suggestion feel targeted instead of generic. Following T-005's replan, this is a second graph
+in `web-app/ai/` (its own `StateGraph`), not a Python service — the same pivot T-005 already
+made, so there's no separate architecture decision left to make here. T-005's tools were
+removed (see its entry) in favor of a plain prefetch step — this graph should follow the same
+pattern (a prefetch node doing direct DB reads, likely sharing `ai/context/fetch-reply-context.ts`'s
+message-fetching logic or a sibling of it) rather than reintroducing tool-calling.
 
 **Done when:** stage, product interest, and objection are persisted per conversation, refresh
 as new messages arrive, and are visible in the details panel.
@@ -648,6 +690,16 @@ validation means the response arrives complete, so animating it character by cha
 misrepresent latency and add perceived delay. Real streaming needs SSE from `ml/` and a
 different validation strategy — an architecture decision, not a design task.
 
+**Addressed by T-005 (2026-08-16), then narrowed by T-005's second replan:** the "regenerate"
+button streams via `POST /api/ai/reply-suggestion` (`web-app/ai/`, `@ai-sdk/langchain`). It
+originally showed the agent's tool-calling activity while waiting; once the tool-calling loop
+was removed in favor of a single prefetch → finalize call, there was no more intermediate
+activity left to show — the client now just sees the prefetch→finalize state transition, then
+the finished result. The structured candidate itself still arrives whole either way, for the
+JSON-mode reason above. The suggestion that first loads when a conversation opens is
+unaffected — that path still goes
+through the plain, non-streaming `fetchAISuggestionAction`.
+
 ---
 
 ### ☑ T-028 · Debounced, presence-gated suggestion generation — DONE (2026-08-15)
@@ -724,12 +776,14 @@ retired.
 > bypass had to go. Password auth sidesteps the email-delivery constraint that caused the
 > deferral in the first place.
 
-**Then — prove the value proposition**
-T-004 → T-005 → T-006 → T-007 → T-015
+**Then — prove the value proposition** ☑ through T-006
+~~T-004 → T-005 → T-006~~ → T-007 → T-015
 
 This gives a demonstrable copilot without any Meta dependency: conversations arrive by
 seed or import, the AI reads them and proposes real replies, the seller sends. It is the
-shortest path to knowing whether the core idea holds up.
+shortest path to knowing whether the core idea holds up. T-005/T-006 are done against
+`AI_MOCK_MODE=true` — end-to-end verification against a real `OPENAI_API_KEY` and a live
+Supabase project is still outstanding, whichever of T-007/T-015 picks it up first.
 
 **In parallel, starting now — Meta app review**
 T-010a and T-010d have external approval lead times measured in weeks. Begin the paperwork

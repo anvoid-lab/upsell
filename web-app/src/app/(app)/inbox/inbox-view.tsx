@@ -8,6 +8,7 @@ import { InboxChatPanel } from './inbox-chat-panel';
 import { InboxDetailsPanel } from './inbox-details-panel';
 import { useChatPanel } from './inbox-chat-panel.hook';
 import { useRealtimeInbox } from './use-realtime-inbox.hook';
+import { IntegrationView } from '@/app/inbox/integration/integration-view';
 
 interface InboxViewProps {
   initialConversations: Conversation[];
@@ -16,15 +17,12 @@ interface InboxViewProps {
 const SELECTED_PARAM = 'c';
 
 export function InboxView({ initialConversations }: InboxViewProps) {
+  const [integrating, setIntegrating] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // A seleção vive na URL (?c=<id>), não em useState — um refresh da página
-  // reconstrói o React do zero, e um useState local não sobrevive a isso.
-  // 'c1' era um placeholder que nunca correspondeu a dados reais; com id
-  // agora bigint (migração 004), uma id inexistente deixa de falhar em
-  // silêncio e passa a rebentar a query logo no load da página.
+  // Keep the selection in the URL so it survives a full page refresh.
   const selectedId = searchParams.get(SELECTED_PARAM);
 
   const setSelectedId = useCallback(
@@ -35,9 +33,8 @@ export function InboxView({ initialConversations }: InboxViewProps) {
       } else {
         params.delete(SELECTED_PARAM);
       }
-      // replace, não push: trocar de conversa é mais "mudar de separador" do
-      // que "navegar" — com push, o botão Voltar ficava a andar conversa a
-      // conversa em vez de sair da inbox.
+      // Replace the current entry so the Back button leaves the inbox instead
+      // of traversing every previously selected conversation.
       router.replace(`${pathname}${params.size ? `?${params}` : ''}`, { scroll: false });
     },
     [router, pathname, searchParams],
@@ -47,10 +44,8 @@ export function InboxView({ initialConversations }: InboxViewProps) {
     Record<string, ConversationStatus>
   >({});
 
-  // A lista vive aqui, não dentro de useConversationList: é o mesmo sítio onde
-  // está a subscrição Realtime, e o painel de conversa precisa de reagir aos
-  // mesmos eventos. Antes era um `useState(initialConversations)` sem setter —
-  // um snapshot congelado no momento em que a página carregou.
+  // Keep the list beside the Realtime subscription so the conversation panel
+  // and list react to the same events.
   const [conversations, setConversations] =
     useState<Conversation[]>(initialConversations);
 
@@ -61,14 +56,12 @@ export function InboxView({ initialConversations }: InboxViewProps) {
     setConversations((prev) => {
       const index = prev.findIndex((c) => c.id === incoming.id);
       if (index === -1) {
-        // Conversa nova (lead a escrever pela primeira vez). Ainda não tem
-        // mensagens nem follow-ups carregados — chegam ao abrir, ou por
-        // Realtime se já estiver aberta.
+        // A new conversation receives its messages and follow-ups when opened
+        // or through Realtime if it is already selected.
         return [{ ...incoming, messages: [], follow_ups: [] }, ...prev];
       }
       const next = [...prev];
-      // Preserva o que o payload do Realtime não traz: mensagens (só na
-      // tabela messages) e follow_ups (junção que só o serviço da lista faz).
+      // Preserve related data that is not included in the Realtime row.
       next[index] = {
         ...incoming,
         messages: prev[index].messages,
@@ -94,7 +87,9 @@ export function InboxView({ initialConversations }: InboxViewProps) {
 
   return (
     <>
+      {integrating && <IntegrationView onClose={() => setIntegrating(false)} />}
       <InboxConversationList
+        onConnect={() => setIntegrating(true)}
         selectedId={selectedId}
         onSelect={setSelectedId}
         statusOverrides={statusOverrides}

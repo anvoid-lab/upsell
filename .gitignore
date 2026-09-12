@@ -33,6 +33,7 @@ web-app/supabase/.temp/
 
 # Local credentials — never committed, see docs/login-credentials.txt
 docs/login-credentials.txt
+web-app/docs/login-credentials.txt
 
 # Local agent and workspace state
 .jarvis/

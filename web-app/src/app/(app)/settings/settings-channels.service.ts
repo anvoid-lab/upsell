@@ -7,6 +7,8 @@ import {
   type ChannelConnection,
 } from "@core/contracts";
 import { createSupabaseServerClient } from "@db/client";
+import { InboxService } from "@/app/inbox/inbox.service";
+import { InboxContract, type InboxChannel } from "@core/contracts/inbox.contract";
 
 type ChannelDoc = ChannelConnection & { id: string };
 
@@ -19,26 +21,26 @@ class SettingsChannelsService {
 
   async fetchChannels(): Promise<ChannelConnection[]> {
     const docs = await this.channels.findAll<ChannelDoc>();
-    return docs.map((doc) => ChannelContract.connectionSchema.parse(doc));
+    const channels = docs.map((doc) => ChannelContract.connectionSchema.parse(doc));
+    const supported: InboxChannel[] = ["whatsapp", "instagram"];
+    return supported.map((platform) => channels.find((channel) => channel.platform === platform) ?? ({
+      platform,
+      connected: false,
+      provider: process.env.INBOX_PROVIDER ?? "unipile",
+      connection_status: "disconnected",
+    }));
   }
 
-  async connectChannel(platform: string): Promise<void> {
+  async connectChannel(platform: string): Promise<string> {
     validateContract(ChannelContract.connectRequestSchema, { platform }, "SettingsChannelsService.connectChannel");
-    const docs = await this.channels.findAll<ChannelDoc>({ filters: { platform } as Partial<ChannelConnection> });
-    if (docs[0]) {
-      await this.channels.update(docs[0].id, {
-        connected: true,
-        connected_at: new Date(),
-      } as Partial<ChannelConnection>);
-    }
+    const channel = InboxContract.channelSchema.parse(platform);
+    return new InboxService().connect(channel);
   }
 
   async disconnectChannel(platform: string): Promise<void> {
     validateContract(ChannelContract.connectRequestSchema, { platform }, "SettingsChannelsService.disconnectChannel");
-    const docs = await this.channels.findAll<ChannelDoc>({ filters: { platform } as Partial<ChannelConnection> });
-    if (docs[0]) {
-      await this.channels.update(docs[0].id, { connected: false } as Partial<ChannelConnection>);
-    }
+    const channel = InboxContract.channelSchema.parse(platform);
+    await new InboxService().disconnect(channel);
   }
 
 }
