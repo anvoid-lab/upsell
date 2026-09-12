@@ -31,11 +31,14 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
 
   let admin: SupabaseClient;
   let tenant: SupabaseClient;
+  let anonymous: SupabaseClient;
   let userId: string;
   let secondUserId: string;
   let ownBusinessId: string;
   let foreignBusinessId: string;
   let foreignConversationId: string;
+  let foreignMessageId: string;
+  let foreignNoteId: string;
 
   beforeAll(async () => {
     admin = createClient(url!, secretKey!, { auth: { persistSession: false } });
@@ -102,7 +105,40 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
     }
     foreignConversationId = String(foreignConversation.id);
 
+    const { data: foreignMessage, error: foreignMessageErr } = await admin
+      .from("messages")
+      .insert({
+        business_id: foreignBusinessId,
+        conversation_id: foreignConversationId,
+        content: "foreign message",
+        direction: "in",
+        timestamp: new Date().toISOString(),
+        read: false,
+      })
+      .select("id")
+      .single();
+    if (foreignMessageErr || !foreignMessage) {
+      throw new Error(`Failed to create foreign message: ${foreignMessageErr?.message}`);
+    }
+    foreignMessageId = String(foreignMessage.id);
+
+    const { data: foreignNote, error: foreignNoteErr } = await admin
+      .from("conversation_notes")
+      .insert({
+        business_id: foreignBusinessId,
+        conversation_id: foreignConversationId,
+        author_id: secondUserId,
+        content: "foreign private note",
+      })
+      .select("id")
+      .single();
+    if (foreignNoteErr || !foreignNote) {
+      throw new Error(`Failed to create foreign note: ${foreignNoteErr?.message}`);
+    }
+    foreignNoteId = String(foreignNote.id);
+
     tenant = createClient(url!, publishableKey!, { auth: { persistSession: false } });
+    anonymous = createClient(url!, publishableKey!, { auth: { persistSession: false } });
     const { error: signInErr } = await tenant.auth.signInWithPassword({ email, password });
     if (signInErr) throw new Error(`Test user sign-in failed: ${signInErr.message}`);
   });
@@ -132,9 +168,36 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
     }
   });
 
+  it("does not expose inbox data or note creation to anonymous requests", async () => {
+    for (const table of ["conversations", "messages", "conversation_notes"] as const) {
+      const { data } = await anonymous.from(table).select("id");
+      expect(data ?? [], `anonymous access returned rows from ${table}`).toEqual([]);
+    }
+
+    const { error } = await anonymous.from("conversation_notes").insert({
+      conversation_id: foreignConversationId,
+      content: "anonymous note attempt",
+    });
+    expect(error).not.toBeNull();
+  });
+
   it("cannot see another business's row by id, even when it knows the id", async () => {
     const { data } = await tenant.from("businesses").select("id").eq("id", foreignBusinessId);
     expect(data).toEqual([]);
+
+    const { data: messages, error: messagesError } = await tenant
+      .from("messages")
+      .select("id")
+      .eq("id", foreignMessageId);
+    expect(messagesError).toBeNull();
+    expect(messages).toEqual([]);
+
+    const { data: notes, error: notesError } = await tenant
+      .from("conversation_notes")
+      .select("id")
+      .eq("id", foreignNoteId);
+    expect(notesError).toBeNull();
+    expect(notes).toEqual([]);
   });
 
   it("cannot insert a row into another business", async () => {
@@ -218,6 +281,12 @@ describe.skipIf(!hasCredentials)("multi-tenancy RLS (live Supabase)", () => {
       .eq("id", conversation!.id)
       .single();
     expect(refreshed?.status).toBe("resolved");
+
+    const { error: invalidStatusError } = await tenant
+      .from("conversations")
+      .update({ status: "closed" })
+      .eq("id", conversation!.id);
+    expect(invalidStatusError).not.toBeNull();
   });
 
   it("cannot attach a note to another business's conversation", async () => {

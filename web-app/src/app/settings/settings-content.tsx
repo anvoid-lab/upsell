@@ -47,7 +47,7 @@ export const SettingsContent: FC<SettingsContentProps> = ({
   const aiSettings = DEFAULT_AI_SETTINGS;
   const isSaving = false;
   const saved = false;
-  const updateAISetting = (_key: keyof AISettings, _value: unknown) => {};
+  const updateAISetting: (key: keyof AISettings, value: unknown) => void = () => {};
   const handleSaveAI = () => {};
 
   return (

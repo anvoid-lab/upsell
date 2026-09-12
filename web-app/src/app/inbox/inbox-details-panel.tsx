@@ -96,15 +96,15 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
               ['Name', contact.name],
               [
                 'Channel',
-                <span className="capitalize">{contact.platform}</span>,
+                <span key="channel" className="capitalize">{contact.platform}</span>,
               ],
               [
                 'First contact',
-                <span suppressHydrationWarning>
+                <span key="first-contact" suppressHydrationWarning>
                   {formatDate(contact.first_contact)}
                 </span>,
               ],
-              ['Status', <StatusBadge status={contact.status} />],
+              ['Status', <StatusBadge key="status" status={contact.status} />],
             ] as [string, React.ReactNode][]
           ).map(([k, v], i) => (
             <div key={i} className="flex justify-between items-center mb-1.5">
@@ -198,7 +198,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                     </Badge>
                   </div>
                   <p className="text-[11px] text-neutral-400 leading-relaxed">
-                    "{fu.message}"
+                    &ldquo;{fu.message}&rdquo;
                   </p>
                   <p
                     className="text-[11px] text-neutral-300 mt-1"

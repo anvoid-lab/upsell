@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "@/app/globals.css";
 import { AppSidebar } from "@/app/sidebar";
 import { ConfirmToastProvider } from "@/components/shared/confirm-toast";
@@ -11,6 +12,11 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+const appFont = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export default async function RootLayout({
   children,
@@ -30,7 +36,6 @@ export default async function RootLayout({
     content = (
       <div
         className="flex h-screen bg-white overflow-hidden"
-        style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
       >
         <AppSidebar
           unreadCount={unreadCount}
@@ -43,16 +48,8 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
+    <html lang="en" className={appFont.className}>
+      <body>
         <ConfirmToastProvider>{content}</ConfirmToastProvider>
       </body>
     </html>

@@ -188,8 +188,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
   const suggestion = null as AISuggestion | null;
   const isSuggestionLoading = false;
   const suggestionStatus = 'idle' as 'idle' | 'sending' | 'scheduled' | 'dismissed';
-  const handleSendSuggestion = (_text?: string) => {};
-  const handleScheduleSuggestion = (_hours: number) => {};
+  const handleSendSuggestion: (text?: string) => void = () => {};
+  const handleScheduleSuggestion: (hours: number) => void = () => {};
   const handleDismissSuggestion = () => {};
   const handleGenerateSuggestion = () => {};
 
@@ -476,7 +476,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   onClick={() => setIsEditingSuggestion(true)}
                   className="text-xs text-neutral-600 leading-relaxed mb-1.5 pl-0.5 cursor-text hover:text-neutral-800 transition-colors"
                 >
-                  "{editedSuggestion}"
+                  &ldquo;{editedSuggestion}&rdquo;
                 </p>
               )}
               {suggestion.rationale && (

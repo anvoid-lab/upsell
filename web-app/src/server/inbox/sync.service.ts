@@ -49,7 +49,7 @@ export class InboxSyncService {
     const sorted = [...messages].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
     const first = sorted[0];
     const last = sorted.at(-1);
-    let { data: conversation, error } = await supabase
+    const conversationResult = await supabase
       .from("conversations")
       .select("id")
       .eq("business_id", businessId)
@@ -57,7 +57,8 @@ export class InboxSyncService {
       .eq("channel_conversation_id", chat.externalChatId)
       .is("deleted_at", null)
       .maybeSingle();
-    if (error) throw error;
+    let conversation = conversationResult.data;
+    if (conversationResult.error) throw conversationResult.error;
 
     const occurredAt = last?.occurredAt ?? chat.occurredAt ?? new Date();
     const values = {

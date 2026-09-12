@@ -241,7 +241,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
               <>
                 {searchResults.length === 0 && (
                   <p className="px-4 py-6 text-xs text-neutral-400 text-center">
-                    No results for "{searchQuery}"
+                    No results for &ldquo;{searchQuery}&rdquo;
                   </p>
                 )}
                 {searchResults.map((conv) => (

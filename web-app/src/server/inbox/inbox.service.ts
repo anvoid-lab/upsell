@@ -265,7 +265,7 @@ export class InboxService implements InboxProvider {
 
   private async persistMessage(channelId: string, businessId: string, event: ProviderMessageEvent) {
     const supabase = createSupabaseServiceClient();
-    let { data: conversation, error } = await supabase
+    const conversationResult = await supabase
       .from("conversations")
       .select("id")
       .eq("channel_id", channelId)
@@ -273,7 +273,8 @@ export class InboxService implements InboxProvider {
       .eq("business_id", businessId)
       .is("deleted_at", null)
       .maybeSingle();
-    if (error) throw error;
+    let conversation = conversationResult.data;
+    if (conversationResult.error) throw conversationResult.error;
 
     if (!conversation) {
       if (event.direction === "out") return "ignored" as const;

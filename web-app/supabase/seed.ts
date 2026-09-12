@@ -376,6 +376,7 @@ async function seed() {
   const conversationIdByLocalKey = new Map<string, string>();
   for (const c of conversations) {
     const { follow_ups: _followUps, id: localKey, ...doc } = c;
+    void _followUps;
     const validated = validateContract(
       ConversationContract.docSchema.omit({ follow_ups: true, id: true } as never),
       doc,
@@ -394,9 +395,11 @@ async function seed() {
   // Follow-ups (extraídos das conversations)
   const allFollowUps = conversations.flatMap((c) => {
     const realConversationId = conversationIdByLocalKey.get(c.id)!;
-    return c.follow_ups.map(({ id: _localFuId, conversation_id: _localConvKey, ...fu }) =>
-      scoped({ ...fu, conversation_id: realConversationId }),
-    );
+    return c.follow_ups.map(({ id: _localFuId, conversation_id: _localConvKey, ...fu }) => {
+      void _localFuId;
+      void _localConvKey;
+      return scoped({ ...fu, conversation_id: realConversationId });
+    });
   });
   if (allFollowUps.length > 0) {
     const { error: fuErr } = await supabase.from("follow_ups").insert(allFollowUps);
@@ -408,6 +411,7 @@ async function seed() {
   console.log("Inserting messages...");
   const messageRows = messages.map((m) => {
     const { id: _localMsgId, conversation_id: localConvKey, ...rest } = m;
+    void _localMsgId;
     const realConversationId = conversationIdByLocalKey.get(localConvKey);
     if (!realConversationId) {
       throw new Error(`seed:msg — chave local de conversa desconhecida "${localConvKey}"`);
