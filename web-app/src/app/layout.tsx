@@ -23,8 +23,9 @@ export default async function RootLayout({
 
   let content = children;
   if (user) {
-    const conversations =
-      await inboxConversationListService.fetchConversations();
+    const conversations = await inboxConversationListService
+      .fetchConversations()
+      .catch(() => []);
     const unreadCount = conversations.filter((conversation) => conversation.unread).length;
     content = (
       <div

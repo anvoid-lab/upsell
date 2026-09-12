@@ -18,6 +18,7 @@ export type {
   Message,
   MessageDeliveryStatus,
   MessageDirection,
+  InboxConnectionStatus,
   Platform,
   PlatformStat,
   ProductInterest,
