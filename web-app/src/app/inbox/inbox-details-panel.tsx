@@ -1,7 +1,7 @@
 'use client';
 
 import { FC, useEffect, useState } from 'react';
-import { AlertTriangle, CalendarPlus } from 'lucide-react';
+import { IconAlertTriangle, IconCalendarPlus } from '@icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -69,7 +69,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
 
   if (!conversation) {
     return (
-      <aside className="w-[25%] min-w-[260px] max-w-[380px] flex-shrink-0 border-l border-neutral-200 bg-neutral-50 flex items-center justify-center">
+      <aside className="w-full flex-shrink-0 border-l border-neutral-200 bg-neutral-50 flex items-center justify-center">
         <p className="text-[13px] text-neutral-400 text-center px-4">
           Select a conversation
           <br />
@@ -83,7 +83,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
 
   return (
     <>
-      <aside className="w-[25%] min-w-[260px] max-w-[380px] flex-shrink-0 border-l border-neutral-200 bg-neutral-50 flex flex-col overflow-auto">
+      <aside className="w-full flex-shrink-0 border-l border-neutral-200 bg-neutral-50 flex flex-col overflow-auto">
         <div className="h-[52px] px-4 flex items-center border-b border-neutral-200 flex-shrink-0">
           <span className="text-sm font-medium text-neutral-900">Details</span>
         </div>
@@ -96,7 +96,9 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
               ['Name', contact.name],
               [
                 'Channel',
-                <span key="channel" className="capitalize">{contact.platform}</span>,
+                <span key="channel" className="capitalize">
+                  {contact.platform}
+                </span>,
               ],
               [
                 'First contact',
@@ -134,7 +136,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                       )}
                     >
                       {product_interest.is_low_stock && (
-                        <AlertTriangle className="w-3 h-3" />
+                        <IconAlertTriangle className="w-3 h-3" />
                       )}
                       {product_interest.is_low_stock
                         ? `${product_interest.stock} left`
@@ -168,7 +170,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                 className="rounded-full h-7 px-3 text-xs gap-1.5 border-dashed text-neutral-500"
                 onClick={() => setScheduleOpen(true)}
               >
-                <CalendarPlus className="w-3 h-3" />
+                <IconCalendarPlus className="w-3 h-3" />
                 Schedule follow-up
               </Button>
             </div>
@@ -187,11 +189,11 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                       variant="secondary"
                       className={cn(
                         'text-[10px] px-1.5 py-0 h-4 rounded-full font-semibold',
-                         fu.status === 'sent'
-                           ? 'bg-neutral-100 text-neutral-500 hover:bg-neutral-100'
-                           : fu.status === 'scheduled'
-                             ? 'bg-primary-100 text-primary-700 hover:bg-primary-100'
-                             : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-100',
+                        fu.status === 'sent'
+                          ? 'bg-neutral-100 text-neutral-500 hover:bg-neutral-100'
+                          : fu.status === 'scheduled'
+                            ? 'bg-primary-100 text-primary-700 hover:bg-primary-100'
+                            : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-100',
                       )}
                     >
                       {fu.status}
@@ -218,7 +220,7 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                 className="w-full rounded-full h-7 text-xs gap-1.5 text-neutral-400 border border-dashed border-neutral-200 mt-1"
                 onClick={() => setScheduleOpen(true)}
               >
-                <CalendarPlus className="w-3 h-3" /> Add follow-up
+                <IconCalendarPlus className="w-3 h-3" /> Add follow-up
               </Button>
             </>
           )}
@@ -238,8 +240,14 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
                   <p className="text-xs text-neutral-700 leading-relaxed">
                     {note.content}
                   </p>
-                  <p className="mt-1 text-[10px] text-neutral-400" suppressHydrationWarning>
-                    You · {note.id.startsWith('pending-note:') ? 'Saving…' : formatRelative(note.created_at)}
+                  <p
+                    className="mt-1 text-[10px] text-neutral-400"
+                    suppressHydrationWarning
+                  >
+                    You ·{' '}
+                    {note.id.startsWith('pending-note:')
+                      ? 'Saving…'
+                      : formatRelative(note.created_at)}
                   </p>
                 </div>
               ))}

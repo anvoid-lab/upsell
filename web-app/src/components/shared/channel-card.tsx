@@ -1,6 +1,6 @@
 'use client';
 
-import { Camera, MessageCircle, Users } from 'lucide-react';
+import { IconCamera, IconMessageCircle, IconUsers } from '@icons';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/format';
 import type { ChannelConnection } from '@/types';
@@ -8,19 +8,19 @@ import type { ChannelConnection } from '@/types';
 export const CHANNEL_DETAILS = {
   whatsapp: {
     label: 'WhatsApp Business',
-    icon: MessageCircle,
+    icon: IconMessageCircle,
     color: 'bg-emerald-50 border-emerald-100',
     iconColor: 'text-emerald-600',
   },
   instagram: {
     label: 'Instagram',
-    icon: Camera,
+    icon: IconCamera,
     color: 'bg-pink-50 border-pink-100',
     iconColor: 'text-pink-600',
   },
   facebook: {
     label: 'Facebook Page',
-    icon: Users,
+    icon: IconUsers,
     color: 'bg-blue-50 border-blue-100',
     iconColor: 'text-blue-600',
   },

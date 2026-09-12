@@ -1,7 +1,7 @@
 "use client";
 
 import { FC } from "react";
-import { MessageSquare, Send, TrendingUp, DollarSign, type LucideIcon } from "lucide-react";
+import { IconMessage, IconSend, IconTrendingUp, IconCurrencyDollar, type Icon } from "@icons";
 import { Badge } from "@/components/ui/badge";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -16,7 +16,7 @@ const PLATFORM_COLORS = {
   facebook: "#1877F2",
 };
 
-const KPI_ICONS: LucideIcon[] = [MessageSquare, Send, TrendingUp, DollarSign];
+const KPI_ICONS: Icon[] = [IconMessage, IconSend, IconTrendingUp, IconCurrencyDollar];
 
 export const AnalyticsOverviewContent: FC<{ initialData: AnalyticsOverviewResponse }> = ({ initialData }) => {
   const { kpis, chart_data, platform_stats, period, setPeriod } = useAnalyticsOverview(initialData);
@@ -39,7 +39,7 @@ export const AnalyticsOverviewContent: FC<{ initialData: AnalyticsOverviewRespon
                 key={p}
                 onClick={() => setPeriod(p)}
                 className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${
-                  period === p ? "bg-indigo-600 text-white" : "text-zinc-500 hover:text-zinc-800"
+                  period === p ? "bg-primary text-white" : "text-zinc-500 hover:text-zinc-800"
                 }`}
               >
                 {p === "7d" ? "7 days" : p === "30d" ? "30 days" : "90 days"}
@@ -85,8 +85,8 @@ export const AnalyticsOverviewContent: FC<{ initialData: AnalyticsOverviewRespon
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gradConv" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.08} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  <stop offset="5%"  stopColor="var(--primary-600)" stopOpacity={0.08} />
+                  <stop offset="95%" stopColor="var(--primary-600)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
@@ -96,7 +96,7 @@ export const AnalyticsOverviewContent: FC<{ initialData: AnalyticsOverviewRespon
               <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} iconType="circle" iconSize={7} />
               <Area type="monotone" dataKey="total"      name="Total"       stroke="#18181b" strokeWidth={1.5} fill="url(#gradTotal)" dot={false} activeDot={{ r: 4, fill: "#18181b" }} />
               <Area type="monotone" dataKey="followed_up" name="Followed up" stroke="#10b981" strokeWidth={1.5} strokeDasharray="4 3" fill="url(#gradFU)"    dot={false} activeDot={{ r: 4 }} />
-              <Area type="monotone" dataKey="converted"  name="Converted"   stroke="#6366f1" strokeWidth={1.5} strokeDasharray="2 3" fill="url(#gradConv)"  dot={false} activeDot={{ r: 4 }} />
+              <Area type="monotone" dataKey="converted"  name="Converted"   stroke="var(--primary-600)" strokeWidth={1.5} strokeDasharray="2 3" fill="url(#gradConv)"  dot={false} activeDot={{ r: 4 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

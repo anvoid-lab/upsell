@@ -4,7 +4,7 @@ import { AI_FEATURES_ENABLED } from '@/lib/ai-features';
 
 import { FC, useState, useEffect, useRef } from 'react';
 
-import { Settings, Search, Clock, X } from 'lucide-react';
+import { IconSettings, IconSearch, IconClock, IconX } from '@icons';
 import { cn } from '@/lib/utils';
 import { formatListTimestamp } from '@/lib/format';
 import { Button } from '@/components/ui/button';
@@ -98,7 +98,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
 
   return (
     <>
-      <div className="w-[30%] min-w-[300px] max-w-[380px] flex-shrink-0 border-r border-neutral-200 flex flex-col bg-white">
+      <div className="w-[25%] flex-shrink-0 border-r border-neutral-200 flex flex-col bg-white">
         {/* Header */}
         <div className="h-[52px] px-4 flex items-center justify-between border-b border-neutral-200 flex-shrink-0">
           <span className="text-sm font-medium text-neutral-900">
@@ -111,7 +111,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
               className="w-7 h-7 rounded-full"
               onClick={() => setSearchOpen(true)}
             >
-              <Search className="w-3.5 h-3.5 text-neutral-400" />
+              <IconSearch className="w-3.5 h-3.5 text-neutral-400" />
             </Button>
             {onConnect && (
               <Button
@@ -122,7 +122,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
                 title="Manage channel connection"
                 onClick={onConnect}
               >
-                <Settings className="w-3.5 h-3.5 text-neutral-400" />
+                <IconSettings className="w-3.5 h-3.5 text-neutral-400" />
               </Button>
             )}
           </div>
@@ -140,7 +140,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
                   <TabsTrigger
                     key={tab}
                     value={tab}
-                     className="flex-1 flex items-center justify-center gap-1.5 text-[13px] px-2 py-1 rounded-full capitalize h-6 data-[state=active]:bg-primary-600 data-[state=active]:text-white data-[state=active]:shadow-none"
+                    className="flex-1 flex items-center justify-center gap-1.5 text-[13px] px-2 py-1 rounded-full capitalize h-6 data-[state=active]:bg-primary-600 data-[state=active]:text-white data-[state=active]:shadow-none"
                   >
                     {tab}
                     {tabCounts[tab] > 0 && (
@@ -149,8 +149,8 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
                           'text-[10px] font-bold px-1 py-0 rounded-full leading-4 min-w-[14px] text-center',
                           activeTab === tab
                             ? 'bg-white/20 text-white'
-                           : tabUnread[tab] > 0
-                               ? 'bg-primary-100 text-primary-600'
+                            : tabUnread[tab] > 0
+                              ? 'bg-primary-100 text-primary-600'
                               : 'bg-neutral-200 text-neutral-500',
                         )}
                       >
@@ -199,7 +199,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
         <DialogContent className="p-0 gap-0 max-w-md top-[20%] translate-y-0 overflow-hidden">
           <div className="flex items-center gap-2.5 px-4 py-3 border-b border-neutral-100">
-            <Search className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+            <IconSearch className="w-4 h-4 text-neutral-400 flex-shrink-0" />
             <Input
               ref={inputRef}
               value={searchQuery}
@@ -212,7 +212,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
                 onClick={() => setSearchQuery('')}
                 className="text-neutral-400 hover:text-neutral-600 flex-shrink-0"
               >
-                <X className="w-3.5 h-3.5" />
+                <IconX className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -221,7 +221,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
             {!searchQuery.trim() && (
               <>
                 <div className="px-4 pt-3 pb-1.5 flex items-center gap-1.5">
-                  <Clock className="w-3 h-3 text-neutral-400" />
+                  <IconClock className="w-3 h-3 text-neutral-400" />
                   <SectionLabel>Recent</SectionLabel>
                 </div>
                 {recentConversations.length === 0 && (
@@ -286,8 +286,7 @@ const ConversationRow: FC<{
   isActive: boolean;
   onClick: () => void;
 }> = ({ conversation, isActive, onClick }) => {
-  const { contact, last_message, last_message_at, unread } =
-    conversation;
+  const { contact, last_message, last_message_at, unread } = conversation;
 
   return (
     <button
@@ -341,7 +340,9 @@ const ConversationRow: FC<{
           )}
           {unread && (
             // Animate only the unread dot so reordering does not flash the list.
-            <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT.open} ml-auto flex-shrink-0 animate-fade-in motion-reduce:animate-none`} />
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT.open} ml-auto flex-shrink-0 animate-fade-in motion-reduce:animate-none`}
+            />
           )}
         </div>
       </div>
@@ -349,7 +350,7 @@ const ConversationRow: FC<{
   );
 };
 
-// ─── Search result row ────────────────────────────────────────────────────────
+// ─── Search result row ────────────────────────────────────────────────────────────
 
 const SearchResultRow: FC<{
   conversation: Conversation;
@@ -366,7 +367,7 @@ const SearchResultRow: FC<{
     return (
       <>
         {text.slice(0, idx)}
-          <mark className="bg-primary-100 text-primary-700 rounded-sm not-italic">
+        <mark className="bg-primary-100 text-primary-700 rounded-sm not-italic">
           {text.slice(idx, idx + query.length)}
         </mark>
         {text.slice(idx + query.length)}

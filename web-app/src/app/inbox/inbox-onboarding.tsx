@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { IconCircleCheck, IconLoader2 } from '@icons';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { CHANNEL_DETAILS } from '@/components/shared/channel-card';
@@ -49,9 +49,9 @@ export function InboxOnboarding({ channels }: { channels: ChannelConnection[] })
         <div className="w-full max-w-md text-center" aria-live="polite">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-neutral-200">
             {status === 'connected' ? (
-              <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              <IconCircleCheck className="h-6 w-6 text-emerald-600" />
             ) : (
-              <Loader2 className={`h-6 w-6 text-primary-600 ${pending ? 'animate-spin' : ''}`} />
+              <IconLoader2 className={`h-6 w-6 text-primary-600 ${pending ? 'animate-spin' : ''}`} />
             )}
           </div>
           <h1 className="text-base font-semibold text-neutral-900">

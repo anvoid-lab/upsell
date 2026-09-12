@@ -4,23 +4,23 @@ import { AI_FEATURES_ENABLED } from '@/lib/ai-features';
 
 import { FC, useState, useEffect, useRef } from 'react';
 import {
-  MoreHorizontal,
-  Zap,
-  Paperclip,
-  Smile,
-  Sparkles,
-  PenLine,
-  Check,
-  AlertCircle,
-  Clock3,
-  Loader2,
-  RotateCcw,
-  ChevronDown,
-  FileText,
-  Hash,
-  Link,
-  X,
-} from 'lucide-react';
+  IconDots,
+  IconBolt,
+  IconPaperclip,
+  IconMoodSmile,
+  IconSparkles,
+  IconPencil,
+  IconCheck,
+  IconAlertCircle,
+  IconClockHour3,
+  IconLoader2,
+  IconRotate2,
+  IconChevronDown,
+  IconFileText,
+  IconHash,
+  IconLink,
+  IconX,
+} from '@icons';
 import type { FollowUpType } from '@core/contracts';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/format';
@@ -300,7 +300,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
       <div className="flex-1 flex items-center justify-center bg-neutral-50/50">
         <div className="text-center">
           <div className="w-12 h-12 rounded-2xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
-            <Sparkles className="w-5 h-5 text-neutral-400" />
+            <IconSparkles className="w-5 h-5 text-neutral-400" />
           </div>
           <p className="text-sm font-semibold text-neutral-600">
             Select a conversation
@@ -352,7 +352,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
               )}
             >
               {STATUS_LABELS[convStatus]}
-              <ChevronDown className="w-3 h-3 opacity-60" />
+              <IconChevronDown className="w-3 h-3 opacity-60" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[140px]">
@@ -385,7 +385,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
               size="icon"
               className="w-7 h-7 rounded-full text-neutral-400"
             >
-              <MoreHorizontal className="w-3.5 h-3.5" />
+              <IconDots className="w-3.5 h-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[180px]">
@@ -393,14 +393,14 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
               onClick={handleCopyLink}
               className="text-xs gap-2"
             >
-              <Link className="w-3.5 h-3.5" /> Copy conversation link
+              <IconLink className="w-3.5 h-3.5" /> Copy conversation link
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => handleRequestClose()}
               className="text-xs text-red-600 gap-2 focus:text-red-600"
             >
-              <X className="w-3.5 h-3.5" /> Close conversation
+              <IconX className="w-3.5 h-3.5" /> Close conversation
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -453,7 +453,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             <div className="relative p-3.5 bg-white border border-primary-200 rounded-2xl">
               <div className="flex items-center gap-1.5 mb-2">
                 <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center">
-                  <Sparkles className="w-3 h-3 text-primary-500" />
+                  <IconSparkles className="w-3 h-3 text-primary-500" />
                 </div>
                 <span className="text-xs font-semibold text-primary-600 flex-1">
                   AI follow-up suggestion
@@ -559,7 +559,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   → {contact.name}
                 </span>
                 <span className="ml-auto text-[10px] text-neutral-300 flex items-center gap-1">
-                  <Hash className="w-2.5 h-2.5" /> type / for templates
+                  <IconHash className="w-2.5 h-2.5" /> type / for templates
                 </span>
               </>
             ) : (
@@ -573,7 +573,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
           {showTemplates && filteredTpls.length > 0 && (
             <div className="border-b border-neutral-100">
               <div className="px-3 py-1.5 flex items-center gap-1.5">
-                <Hash className="w-3 h-3 text-neutral-400" />
+                <IconHash className="w-3 h-3 text-neutral-400" />
                 <SectionLabel>Templates</SectionLabel>
               </div>
               {filteredTpls.map((t) => (
@@ -673,7 +673,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 onClick={handleGenerateSuggestion}
                 disabled
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <IconSparkles className="w-3.5 h-3.5" />
               </Button>}
               <Button
                 variant="ghost"
@@ -682,7 +682,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 title="Templates"
                 onClick={openTemplates}
               >
-                <Zap className="w-3.5 h-3.5" />
+                <IconBolt className="w-3.5 h-3.5" />
               </Button>
               <Button
                 variant="ghost"
@@ -691,7 +691,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 title="Attach file"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Paperclip className="w-3.5 h-3.5" />
+                <IconPaperclip className="w-3.5 h-3.5" />
               </Button>
               <Button
                 variant="ghost"
@@ -705,7 +705,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 title="Emoji"
                 onClick={() => setShowEmojiPicker((p) => !p)}
               >
-                <Smile className="w-3.5 h-3.5" />
+                <IconMoodSmile className="w-3.5 h-3.5" />
               </Button>
             </div>
             <div className="flex items-center gap-1.5">
@@ -719,7 +719,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                       : 'text-neutral-400 hover:text-neutral-600',
                   )}
                 >
-                  <PenLine className="w-3 h-3" /> Reply
+                  <IconPencil className="w-3 h-3" /> Reply
                 </button>
                 <button
                   onClick={() => setReplyMode('note')}
@@ -730,7 +730,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                       : 'text-neutral-400 hover:text-neutral-600',
                   )}
                 >
-                  <FileText className="w-3 h-3" /> Note
+                  <IconFileText className="w-3 h-3" /> Note
                 </button>
               </div>
               <Button
@@ -815,23 +815,23 @@ const MessageBubble: FC<{
         </span>
         {AI_FEATURES_ENABLED && (
           <span className="flex items-center gap-0.5 text-[10px] text-primary-400 font-medium">
-            <Sparkles className="w-2.5 h-2.5" /> VendAI
+            <IconSparkles className="w-2.5 h-2.5" /> VendAI
           </span>
         )}
         {isOut && isPending && (
           <span className="flex items-center gap-1 text-[10px] text-neutral-400">
-            <Clock3 className="w-3 h-3" /> Pending
+            <IconClockHour3 className="w-3 h-3" /> Pending
           </span>
         )}
         {isOut && deliveryStatus === 'sent' && (
           <span className="flex items-center gap-1 text-[10px] text-primary-500">
-            <Check className="w-3 h-3" /> Sent
+            <IconCheck className="w-3 h-3" /> Sent
           </span>
         )}
         {isOut && isFailed && (
           <div className="flex items-center gap-1.5 text-[10px] text-red-600">
             <span className="flex items-center gap-1" title={message.delivery_error ?? undefined}>
-              <AlertCircle className="w-3 h-3" /> Failed
+              <IconAlertCircle className="w-3 h-3" /> Failed
             </span>
             <button
               type="button"
@@ -840,8 +840,8 @@ const MessageBubble: FC<{
               className="flex items-center gap-1 font-semibold underline underline-offset-2 disabled:opacity-50"
             >
               {isRetrying
-                ? <Loader2 className="w-3 h-3 animate-spin" />
-                : <RotateCcw className="w-3 h-3" />}
+                ? <IconLoader2 className="w-3 h-3 animate-spin" />
+                : <IconRotate2 className="w-3 h-3" />}
               Retry
             </button>
           </div>

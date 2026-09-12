@@ -74,7 +74,7 @@ Para cada caso, anotar:
 
 ## Roteiro principal
 
-### TM-01 — Empresa sem canal conectado
+### TM-01 — Empresa sem canal conectado - ok
 
 **Pré-condição:** empresa nova, sem canal conectado e sem conversas.
 
@@ -91,7 +91,7 @@ Para cada caso, anotar:
 - Não existem conversas ou dados de demonstração.
 - A tela não mostra responsáveis ou membros fictícios.
 
-### TM-02 — Iniciar conexão
+### TM-02 — Iniciar conexão - ok
 
 1. Clicar em `Connect a channel`.
 2. Selecionar um dos canais disponíveis.
@@ -104,7 +104,7 @@ Para cada caso, anotar:
 - A interface não permite iniciar várias conexões simultaneamente.
 - Se a janela não abrir, existe uma opção para continuar na mesma aba.
 
-### TM-03 — Cancelar ou fechar a autenticação
+### TM-03 — Cancelar ou fechar a autenticação - ok
 
 1. Iniciar a conexão.
 2. Fechar a janela antes de concluir.
@@ -115,7 +115,7 @@ Para cada caso, anotar:
 - É possível iniciar a conexão novamente.
 - Nenhuma conta é marcada incorretamente como conectada.
 
-### TM-04 — Conectar uma conta real
+### TM-04 — Conectar uma conta real - ok
 
 1. Iniciar a conexão.
 2. Concluir a autenticação no Unipile.
@@ -128,7 +128,7 @@ Para cada caso, anotar:
 - A tela é atualizada sem exigir novo login.
 - Nenhuma conversa de outra empresa aparece.
 
-### TM-05 — Instagram conectado e inbox vazia
+### TM-05 — Instagram conectado e inbox vazia - ok
 
 **Pré-condição:** canal conectado e nenhuma mensagem recebida.
 
@@ -140,7 +140,7 @@ Para cada caso, anotar:
 - A tela não pede para conectar novamente.
 - A tela vazia é diferente de uma tela de erro.
 
-### TM-06 — Receber a primeira mensagem
+### TM-06 — Receber a primeira mensagem - ok
 
 1. Enviar uma mensagem de texto para a conta conectada usando a conta cliente.
 2. Manter a inbox aberta.
@@ -153,7 +153,7 @@ Para cada caso, anotar:
 - A conversa aparece como não lida até ser aberta.
 - A mensagem aparece somente uma vez.
 
-### TM-07 — Atualização após nova mensagem
+### TM-07 — Atualização após nova mensagem - ok
 
 1. Abrir a conversa recebida.
 2. Enviar outra mensagem pela conta cliente.
@@ -165,7 +165,7 @@ Para cada caso, anotar:
 - O texto e o horário da última mensagem são atualizados.
 - A mensagem não aparece em outra conversa.
 
-### TM-08 — Enviar uma resposta
+### TM-08 — Enviar uma resposta - 0k
 
 1. Escrever uma resposta de texto.
 2. Clicar uma vez em `Send`.
@@ -179,7 +179,7 @@ Para cada caso, anotar:
 - O texto recebido é igual ao texto enviado.
 - O campo de resposta é limpo após o envio.
 
-### TM-09 — Evitar envio duplicado
+### TM-09 — Evitar envio duplicado - ok
 
 1. Escrever uma resposta.
 2. Clicar rapidamente várias vezes em `Send`.

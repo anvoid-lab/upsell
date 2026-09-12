@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft } from 'lucide-react';
+import { IconArrowLeft } from '@icons';
 import { Button } from '@/components/ui/button';
 import { ChannelCard } from '@/components/shared/channel-card';
 import { useOnboardingFlow } from '@/components/shared/onboarding-flow';
@@ -19,7 +19,7 @@ export function InboxChannelSelection({
   return (
     <div className="mx-auto w-full max-w-2xl px-1 text-left">
       <Button variant="ghost" size="sm" className="mb-4 -ml-2 gap-2" onClick={previous}>
-        <ArrowLeft className="h-4 w-4" /> Back
+        <IconArrowLeft className="h-4 w-4" /> Back
       </Button>
       <h1 className="text-xl font-semibold text-zinc-900">Choose a channel</h1>
       <p className="mt-1 text-sm text-zinc-500">

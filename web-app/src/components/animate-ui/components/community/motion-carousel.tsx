@@ -5,7 +5,7 @@ import { motion, type Transition } from 'motion/react';
 import { EmblaOptionsType, EmblaCarouselType } from 'embla-carousel';
 import useEmblaCarousel from 'embla-carousel-react';
 import { Button } from '@/components/animate-ui/components/buttons/button';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { IconChevronRight, IconChevronLeft } from '@icons';
 
 type PropType = {
   slides: React.ReactNode[];
@@ -148,7 +148,7 @@ function MotionCarousel(props: PropType) {
 
       {showControls && <div className="flex justify-between">
         <Button size="icon" onClick={onPrev} disabled={prevDisabled}>
-          <ChevronLeft className="size-5" />
+          <IconChevronLeft className="size-5" />
         </Button>
 
         <div className="flex flex-wrap justify-end items-center gap-2">
@@ -163,7 +163,7 @@ function MotionCarousel(props: PropType) {
         </div>
 
         <Button size="icon" onClick={onNext} disabled={nextDisabled}>
-          <ChevronRight className="size-5" />
+          <IconChevronRight className="size-5" />
         </Button>
       </div>}
     </div>

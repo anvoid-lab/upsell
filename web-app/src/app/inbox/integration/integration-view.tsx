@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect } from "react";
-import { CheckCircle2, Instagram, Loader2, MessageCircle } from "lucide-react";
+import { IconCircleCheck, IconBrandInstagram, IconLoader2, IconMessageCircle } from "@icons";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,12 +18,12 @@ import { DEFAULT_INBOX_CHANNEL, type InboxChannel } from "@core/contracts/inbox.
 const CHANNEL_DETAILS = {
   whatsapp: {
     label: "WhatsApp",
-    Icon: MessageCircle,
+    Icon: IconMessageCircle,
     ready: "Have your phone ready to scan the QR code.",
   },
   instagram: {
     label: "Instagram",
-    Icon: Instagram,
+    Icon: IconBrandInstagram,
     ready: "Have your credentials ready and choose the country where you normally use Instagram when prompted.",
   },
 } as const;
@@ -95,8 +95,8 @@ export function IntegrationView({
         </DialogHeader>
         <div className="flex flex-col items-center gap-4 py-6 text-center" aria-live="polite">
           {status === "connected"
-            ? <CheckCircle2 className="h-10 w-10 text-emerald-600" />
-            : pending ? <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+            ? <IconCircleCheck className="h-10 w-10 text-emerald-600" />
+            : pending ? <IconLoader2 className="h-10 w-10 animate-spin text-emerald-600" />
             : <Icon className="h-10 w-10 text-emerald-600" />}
           <p className="text-sm text-zinc-700">
             {status === "ready" && details.ready}

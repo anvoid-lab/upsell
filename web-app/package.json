@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:hook": "concurrently \"next dev\" \"wait-on http://localhost:3000 && npm run webhook\"",
+    "webhook": "ngrok http 3000 --url https://walrus-clunky-gizzard.ngrok-free.dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
@@ -23,6 +25,7 @@
     "@radix-ui/react-tooltip": "^1.2.4",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "@tabler/icons-react": "^3.46.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -30,7 +33,6 @@
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.15.0",
     "jose": "^6.2.3",
-    "lucide-react": "^0.513.0",
     "motion": "^13.2.0",
     "next": "^16.2.9",
     "react": "^19.0.0",
@@ -44,6 +46,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^10.0.5",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "postcss": "^8",
@@ -51,6 +54,7 @@
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.22.4",
     "typescript": "^5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wait-on": "^9.1.0"
   }
 }
