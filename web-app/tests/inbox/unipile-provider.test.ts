@@ -4,7 +4,10 @@ import { UnipileInboxProvider } from "../../src/server/inbox/providers/unipile";
 
 describe("Unipile inbox provider", () => {
   beforeEach(() => {
-    vi.stubEnv("UNIPILE_WEBHOOK_SECRET", "a-secret-at-least-thirty-two-characters-long");
+    vi.stubEnv(
+      "UNIPILE_WEBHOOK_SECRET",
+      "a-secret-at-least-thirty-two-characters-long",
+    );
   });
 
   afterEach(() => {
@@ -15,15 +18,22 @@ describe("Unipile inbox provider", () => {
   it("keeps automatic proxy selection and disables custom proxies for Instagram", async () => {
     vi.stubEnv("UNIPILE_API_URL", "https://api.example.test");
     vi.stubEnv("UNIPILE_API_KEY", "api-key");
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ url: "https://account.example.test/link" }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ url: "https://account.example.test/link" }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     await new UnipileInboxProvider().createHostedAuthLink({
       channel: "instagram",
       state: "signed-state",
-      notifyUrl: "https://app.example.test/inbox/webhooks/channel?event=connection",
-      successRedirectUrl: "https://app.example.test/inbox/integration?result=success",
-      failureRedirectUrl: "https://app.example.test/inbox/integration?result=error",
+      notifyUrl:
+        "https://app.example.test/inbox/webhooks/channel?event=connection",
+      successRedirectUrl:
+        "https://app.example.test/inbox/integration?result=success",
+      failureRedirectUrl:
+        "https://app.example.test/inbox/integration?result=error",
     });
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
@@ -37,16 +47,23 @@ describe("Unipile inbox provider", () => {
   it("creates an Instagram reconnect link for an existing provider account", async () => {
     vi.stubEnv("UNIPILE_API_URL", "https://api.example.test");
     vi.stubEnv("UNIPILE_API_KEY", "api-key");
-    const fetchMock = vi.fn().mockResolvedValue(Response.json({ url: "https://account.example.test/reconnect" }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ url: "https://account.example.test/reconnect" }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     await new UnipileInboxProvider().createHostedAuthLink({
       channel: "instagram",
       state: "signed-state",
       reconnectAccountId: "instagram-account",
-      notifyUrl: "https://app.example.test/inbox/webhooks/channel?event=connection",
-      successRedirectUrl: "https://app.example.test/inbox/integration?channel=instagram&result=success",
-      failureRedirectUrl: "https://app.example.test/inbox/integration?channel=instagram&result=error",
+      notifyUrl:
+        "https://app.example.test/inbox/webhooks/channel?event=connection",
+      successRedirectUrl:
+        "https://app.example.test/inbox/integration?channel=instagram&result=success",
+      failureRedirectUrl:
+        "https://app.example.test/inbox/integration?channel=instagram&result=error",
     });
 
     const payload = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
@@ -60,14 +77,22 @@ describe("Unipile inbox provider", () => {
   it("loads the provider identity of the connected account owner", async () => {
     vi.stubEnv("UNIPILE_API_URL", "https://api.example.test");
     vi.stubEnv("UNIPILE_API_KEY", "api-key");
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(Response.json({
-        id: "unipile-account", type: "INSTAGRAM", name: "Store",
-        sources: [{ status: "OK" }],
-      }))
-      .mockResolvedValueOnce(Response.json({
-        provider_id: "instagram-user-1", public_identifier: "store",
-      }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          id: "unipile-account",
+          type: "INSTAGRAM",
+          name: "Store",
+          sources: [{ status: "OK" }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          provider_id: "instagram-user-1",
+          public_identifier: "store",
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = new UnipileInboxProvider();
@@ -76,7 +101,33 @@ describe("Unipile inbox provider", () => {
 
     expect(account.id).toBe("unipile-account");
     expect(identity).toBe("instagram-user-1");
-    expect(fetchMock.mock.calls[1][0]).toContain("/users/me?account_id=unipile-account");
+    expect(fetchMock.mock.calls[1][0]).toContain(
+      "/users/me?account_id=unipile-account",
+    );
+  });
+
+  it("loads the attendee picture instead of the social profile URL", async () => {
+    vi.stubEnv("UNIPILE_API_URL", "https://api.example.test");
+    vi.stubEnv("UNIPILE_API_KEY", "api-key");
+    const avatarUrl =
+      "https://scontent-lis1-1.cdninstagram.com/profile-picture.jpg";
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        picture_url: avatarUrl,
+        profile_url: "https://www.instagram.com/rosa.rioprive/",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new UnipileInboxProvider().getAttendeeAvatar(
+      "instagram-account",
+      "attendee-1",
+    );
+
+    expect(result).toBe(avatarUrl);
+    expect(fetchMock.mock.calls[0][0]).toContain(
+      "/chat_attendees/attendee-1?account_id=instagram-account",
+    );
   });
 
   it("normalizes an inbound WhatsApp message", () => {
@@ -113,13 +164,23 @@ describe("Unipile inbox provider", () => {
       message_id: "instagram-message",
       timestamp: "2026-09-12T09:00:00Z",
       message: "Hello",
-      sender: { attendee_provider_id: "customer", attendee_name: "Customer" },
+      sender: {
+        attendee_id: "attendee-1",
+        attendee_provider_id: "customer",
+        attendee_name: "Customer",
+        attendee_profile_url: "https://scontent-lis1-1.cdninstagram.com/avatar.jpg",
+      },
     });
     expect(event).toMatchObject({
       type: "message",
       channel: "instagram",
       providerAccountId: "instagram-account",
       direction: "in",
+      sender: {
+        id: "customer",
+        name: "Customer",
+        attendeeId: "attendee-1",
+      },
     });
   });
 

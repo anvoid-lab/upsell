@@ -34,12 +34,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type {
+  Contact,
   Message,
   AISuggestion,
   ConversationStatus,
   Platform,
 } from '@/types';
-import { Avatar } from '@/components/shared/avatar';
+import { UserAvatar } from '@/components/shared/user-avatar';
 import { Spinner } from '@/components/shared/spinner';
 import { SectionLabel } from '@/components/shared/section-label';
 import { useConfirmToast } from '@/components/shared/confirm-toast';
@@ -187,7 +188,11 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
   // Preserved presentation only; all AI actions and data sources were removed.
   const suggestion = null as AISuggestion | null;
   const isSuggestionLoading = false;
-  const suggestionStatus = 'idle' as 'idle' | 'sending' | 'scheduled' | 'dismissed';
+  const suggestionStatus = 'idle' as
+    | 'idle'
+    | 'sending'
+    | 'scheduled'
+    | 'dismissed';
   const handleSendSuggestion: (text?: string) => void = () => {};
   const handleScheduleSuggestion: (hours: number) => void = () => {};
   const handleDismissSuggestion = () => {};
@@ -208,7 +213,9 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     setIsEditingSuggestion(false);
   }, [suggestion]);
 
-  const handleStatusChange = async (newStatus: ConversationStatus): Promise<boolean> => {
+  const handleStatusChange = async (
+    newStatus: ConversationStatus,
+  ): Promise<boolean> => {
     if (!selectedId || isUpdatingStatus) return false;
     if (newStatus === convStatus) return true;
     const previousStatus = convStatus;
@@ -217,7 +224,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     setIsUpdatingStatus(true);
     try {
       const persisted = await onStatusChange?.(selectedId, newStatus);
-      if (persisted === false) throw new Error("Status persistence failed.");
+      if (persisted === false) throw new Error('Status persistence failed.');
       return true;
     } catch {
       setConvStatus(previousStatus);
@@ -326,11 +333,13 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     <div className="flex-1 flex flex-col min-w-0">
       {/* ── Header ── */}
       <div className="h-[52px] px-4 border-b border-neutral-200 flex items-center gap-2 flex-shrink-0 bg-white">
-        <Avatar
+        <UserAvatar
           initials={contact.initials}
-          bg={contact.avatar_bg}
+          background={contact.avatar_bg}
           color={contact.avatar_color}
-          size="sm"
+          src={contact.avatar_url}
+          alt={contact.name}
+          platform={contact.platform}
         />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-neutral-900 leading-none">
@@ -416,7 +425,10 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
       </div>
 
       {statusError && (
-        <div role="alert" className="border-b border-red-100 bg-red-50 px-4 py-1.5 text-xs text-red-700">
+        <div
+          role="alert"
+          className="border-b border-red-100 bg-red-50 px-4 py-1.5 text-xs text-red-700"
+        >
           {statusError}
         </div>
       )}
@@ -431,6 +443,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 <MessageBubble
                   key={msg.id}
                   message={msg}
+                  contact={contact}
                   isRetrying={retryingMessageIds.has(msg.id)}
                   onRetry={() => void handleRetryMessage(msg.id)}
                 />
@@ -444,7 +457,8 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
           No "generating" state here: while the AI works there is no card at
           all, only the pulsing icon in the reply toolbar. The card appears
           once, already holding the finished suggestion. */}
-      {AI_FEATURES_ENABLED && suggestion &&
+      {AI_FEATURES_ENABLED &&
+        suggestion &&
         (suggestionStatus === 'idle' || suggestionStatus === 'sending') && (
           // O único elemento que aparece sem qualquer acção do vendedor — o
           // webhook gera em segundo plano e o Realtime empurra-o para aqui.
@@ -461,7 +475,9 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 <span className="px-1.5 py-0.5 rounded-full bg-primary-50 text-primary-500 text-[10px] font-semibold">
                   {TECHNIQUE_LABELS[suggestion.type] ?? suggestion.type}
                 </span>
-                <span className="text-[10px] text-neutral-400">Click to edit</span>
+                <span className="text-[10px] text-neutral-400">
+                  Click to edit
+                </span>
               </div>
               {isEditingSuggestion ? (
                 <Textarea
@@ -620,7 +636,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             onChange={handleTextChange}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey))
-                  void handleComposerSubmit();
+                void handleComposerSubmit();
             }}
             onBlur={() =>
               setTimeout(() => {
@@ -656,25 +672,27 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                   clickable again once it finishes. disabled:opacity-100
                   overrides the Button's default disabled fade, which would
                   otherwise flatten the pulse. */}
-              {AI_FEATURES_ENABLED && <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  'w-7 h-7 rounded-full text-primary-500',
-                  isSuggestionLoading
-                    ? 'animate-pulse motion-reduce:animate-none disabled:opacity-100'
-                    : 'hover:bg-primary-50',
-                )}
-                title={
-                  isSuggestionLoading
-                    ? 'Generating suggestion…'
-                    : 'Generate AI suggestion'
-                }
-                onClick={handleGenerateSuggestion}
-                disabled
-              >
-                <IconSparkles className="w-3.5 h-3.5" />
-              </Button>}
+              {AI_FEATURES_ENABLED && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'w-7 h-7 rounded-full text-primary-500',
+                    isSuggestionLoading
+                      ? 'animate-pulse motion-reduce:animate-none disabled:opacity-100'
+                      : 'hover:bg-primary-50',
+                  )}
+                  title={
+                    isSuggestionLoading
+                      ? 'Generating suggestion…'
+                      : 'Generate AI suggestion'
+                  }
+                  onClick={handleGenerateSuggestion}
+                  disabled
+                >
+                  <IconSparkles className="w-3.5 h-3.5" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -740,16 +758,16 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 className={cn(
                   'rounded-full h-7 px-4 text-xs',
                   replyMode === 'note' &&
-                     'bg-neutral-700 hover:bg-neutral-800 text-neutral-50',
+                    'bg-neutral-700 hover:bg-neutral-800 text-neutral-50',
                 )}
               >
                 {isAddingNote
                   ? 'Saving…'
                   : isSending
                     ? 'Sending…'
-                  : replyMode === 'note'
-                    ? 'Add note'
-                    : 'Send'}
+                    : replyMode === 'note'
+                      ? 'Add note'
+                      : 'Send'}
               </Button>
             </div>
           </div>
@@ -778,80 +796,106 @@ const DateSeparator: FC<{ label: string }> = ({ label }) => (
 
 const MessageBubble: FC<{
   message: Message;
+  contact: Contact;
   isRetrying: boolean;
   onRetry: () => void;
-}> = ({ message, isRetrying, onRetry }) => {
+}> = ({ message, contact, isRetrying, onRetry }) => {
   const isOut = message.direction === 'out';
   const deliveryStatus = message.delivery_status ?? 'sent';
-  const isPending = deliveryStatus === 'pending' || deliveryStatus === 'sending';
+  const isPending =
+    deliveryStatus === 'pending' || deliveryStatus === 'sending';
   const isFailed = deliveryStatus === 'failed';
   return (
     <div
       className={cn(
-        'flex max-w-[72%]',
+        'flex max-w-[78%] items-start gap-2 ',
         // Uma mensagem recebida aparece sem o vendedor ter feito nada: entrar
         // em vez de surgir de repente é o que lhe diz que algo mudou.
         'animate-fade-in motion-reduce:animate-none',
-        isOut
-          ? 'self-end flex-col items-end'
-          : 'self-start flex-col items-start',
+        isOut ? 'self-end' : 'self-start',
       )}
     >
+      {!isOut && (
+        <UserAvatar
+          initials={contact.initials}
+          background={contact.avatar_bg}
+          color={contact.avatar_color}
+          src={contact.avatar_url}
+          alt={contact.name}
+          platform={contact.platform}
+        />
+      )}
+
       <div
         className={cn(
-          'px-4 py-2.5 text-sm leading-relaxed shadow-sm',
-          isOut
-            ? isFailed
-              ? 'bg-red-50 text-red-800 border border-red-200 rounded-2xl rounded-br-md'
-              : 'bg-primary-600 text-white rounded-2xl rounded-br-md'
-            : 'bg-white text-neutral-800 rounded-2xl rounded-bl-md border border-neutral-100',
+          'flex min-w-0 flex-col',
+          isOut ? 'items-end' : 'items-start',
         )}
       >
-        {message.content}
-      </div>
-      <div className="flex items-center gap-1.5 mt-1 px-1">
-        <span className="text-[10px] text-neutral-400" suppressHydrationWarning>
-          {formatTime(message.timestamp)}
-        </span>
-        {AI_FEATURES_ENABLED && (
-          <span className="flex items-center gap-0.5 text-[10px] text-primary-400 font-medium">
-            <IconSparkles className="w-2.5 h-2.5" /> VendAI
+        <div
+          className={cn(
+            'px-4 py-2.5 text-sm leading-relaxed shadow-sm',
+            isOut
+              ? isFailed
+                ? 'bg-red-50 text-red-800 border border-red-200 rounded-2xl rounded-br-md'
+                : 'bg-primary-600 text-white rounded-2xl rounded-br-md'
+              : 'bg-white text-neutral-800 rounded-2xl rounded-bl-md border border-neutral-100',
+          )}
+        >
+          {message.content}
+        </div>
+        <div className="flex items-center gap-1.5 mt-1 px-1">
+          <span
+            className="text-[10px] text-neutral-400"
+            suppressHydrationWarning
+          >
+            {formatTime(message.timestamp)}
           </span>
-        )}
-        {isOut && isPending && (
-          <span className="flex items-center gap-1 text-[10px] text-neutral-400">
-            <IconClockHour3 className="w-3 h-3" /> Pending
-          </span>
-        )}
-        {isOut && deliveryStatus === 'sent' && (
-          <span className="flex items-center gap-1 text-[10px] text-primary-500">
-            <IconCheck className="w-3 h-3" /> Sent
-          </span>
-        )}
-        {isOut && isFailed && (
-          <div className="flex items-center gap-1.5 text-[10px] text-red-600">
-            <span className="flex items-center gap-1" title={message.delivery_error ?? undefined}>
-              <IconAlertCircle className="w-3 h-3" /> Failed
+          {AI_FEATURES_ENABLED && (
+            <span className="flex items-center gap-0.5 text-[10px] text-primary-400 font-medium">
+              <IconSparkles className="w-2.5 h-2.5" /> VendAI
             </span>
-            <button
-              type="button"
-              onClick={onRetry}
-              disabled={isRetrying}
-              className="flex items-center gap-1 font-semibold underline underline-offset-2 disabled:opacity-50"
-            >
-              {isRetrying
-                ? <IconLoader2 className="w-3 h-3 animate-spin" />
-                : <IconRotate2 className="w-3 h-3" />}
-              Retry
-            </button>
-          </div>
+          )}
+          {isOut && isPending && (
+            <span className="flex items-center gap-1 text-[10px] text-neutral-400">
+              <IconClockHour3 className="w-3 h-3" /> Pending
+            </span>
+          )}
+          {isOut && deliveryStatus === 'sent' && (
+            <span className="flex items-center gap-1 text-[10px] text-primary-500">
+              <IconCheck className="w-3 h-3" /> Sent
+            </span>
+          )}
+          {isOut && isFailed && (
+            <div className="flex items-center gap-1.5 text-[10px] text-red-600">
+              <span
+                className="flex items-center gap-1"
+                title={message.delivery_error ?? undefined}
+              >
+                <IconAlertCircle className="w-3 h-3" /> Failed
+              </span>
+              <button
+                type="button"
+                onClick={onRetry}
+                disabled={isRetrying}
+                className="flex items-center gap-1 font-semibold underline underline-offset-2 disabled:opacity-50"
+              >
+                {isRetrying ? (
+                  <IconLoader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <IconRotate2 className="w-3 h-3" />
+                )}
+                Retry
+              </button>
+            </div>
+          )}
+        </div>
+        {isOut && isFailed && message.delivery_error && (
+          <p className="mt-1 max-w-sm px-1 text-right text-[10px] text-red-500">
+            {message.delivery_error}
+          </p>
         )}
       </div>
-      {isOut && isFailed && message.delivery_error && (
-        <p className="mt-1 max-w-sm px-1 text-right text-[10px] text-red-500">
-          {message.delivery_error}
-        </p>
-      )}
     </div>
   );
 };

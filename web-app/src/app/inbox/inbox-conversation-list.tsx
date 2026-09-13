@@ -4,20 +4,37 @@ import { AI_FEATURES_ENABLED } from '@/lib/ai-features';
 
 import { FC, useState, useEffect, useRef } from 'react';
 
-import { IconSettings, IconSearch, IconClock, IconX } from '@icons';
+import {
+  IconArrowUpRight,
+  IconCheck,
+  IconChevronDown,
+  IconClock,
+  IconSearch,
+  IconUsers,
+  IconX,
+} from '@icons';
 import { cn } from '@/lib/utils';
 import { formatListTimestamp } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Switch } from '@/components/ui/switch';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { Conversation, ConversationStatus } from '@/types';
-import { Avatar } from '@/components/shared/avatar';
 import { PlatformBadge } from '@/components/shared/platform-badge';
+import { UserAvatar } from '@/components/shared/user-avatar';
 import { SectionLabel } from '@/components/shared/section-label';
 import { STATUS_DOT } from '@/styles/design-tokens';
 import { useConversationList } from './inbox-conversation-list.hook';
+import type { ConversationListFilter } from './inbox-conversation-list.hook';
 
 interface InboxConversationListProps {
   onConnect?: () => void;
@@ -28,6 +45,11 @@ interface InboxConversationListProps {
 }
 
 const MAX_RECENT = 5;
+
+const getLatestMessage = (conversation: Conversation) =>
+  [...conversation.messages].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+  )[0];
 
 export const InboxConversationList: FC<InboxConversationListProps> = ({
   onConnect,
@@ -47,6 +69,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [recentIds, setRecentIds] = useState<string[]>([]);
+  const [unrepliedOnly, setUnrepliedOnly] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,19 +87,20 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
     else setSearchQuery('');
   }, [searchOpen]);
 
-  const tabCounts: Record<ConversationStatus, number> = {
-    open: allConversations.filter((c) => c.status === 'open').length,
-    pending: allConversations.filter((c) => c.status === 'pending').length,
-    resolved: allConversations.filter((c) => c.status === 'resolved').length,
-  };
-  const tabUnread: Record<ConversationStatus, number> = {
-    open: allConversations.filter((c) => c.status === 'open' && c.unread)
-      .length,
-    pending: allConversations.filter((c) => c.status === 'pending' && c.unread)
-      .length,
-    resolved: allConversations.filter(
-      (c) => c.status === 'resolved' && c.unread,
-    ).length,
+  const visibleConversations = unrepliedOnly
+    ? filtered.filter((conversation) => {
+        const latestMessage = getLatestMessage(conversation);
+        return latestMessage
+          ? latestMessage.direction === 'in'
+          : conversation.unread;
+      })
+    : filtered;
+
+  const filterLabels: Record<ConversationListFilter, string> = {
+    all: 'All',
+    open: 'Open',
+    pending: 'Pending',
+    resolved: 'Resolved',
   };
 
   const recentConversations = recentIds
@@ -101,85 +125,84 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
       <div className="w-[25%] flex-shrink-0 border-r border-neutral-200 flex flex-col bg-white">
         {/* Header */}
         <div className="h-[52px] px-4 flex items-center justify-between border-b border-neutral-200 flex-shrink-0">
-          <span className="text-sm font-medium text-neutral-900">
-            All messages
-          </span>
+          <div className="h-full flex items-center">
+            <span className="relative flex h-full items-center px-1 text-[17px] font-semibold text-primary-600 after:absolute after:bottom-0 after:left-0 after:h-[3px] after:w-full after:rounded-t-full after:bg-primary-600">
+              Chats
+            </span>
+          </div>
           <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className="w-7 h-7 rounded-full"
+              className="w-9 h-9 rounded-full"
               onClick={() => setSearchOpen(true)}
             >
-              <IconSearch className="w-3.5 h-3.5 text-neutral-400" />
+              <IconSearch className="w-5 h-5 text-neutral-700" />
             </Button>
             {onConnect && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="w-7 h-7 rounded-full"
+                className="w-9 h-9 rounded-full"
                 aria-label="Manage channel connection"
                 title="Manage channel connection"
                 onClick={onConnect}
               >
-                <IconSettings className="w-3.5 h-3.5 text-neutral-400" />
+                <IconUsers className="w-5 h-5 text-neutral-700" />
               </Button>
             )}
           </div>
         </div>
-
-        {/* Tabs with counts */}
-        <div className="px-3 py-2 flex-shrink-0">
-          <Tabs
-            value={activeTab}
-            onValueChange={(v) => setActiveTab(v as ConversationStatus)}
-          >
-            <TabsList className="h-7 rounded-full bg-neutral-100 p-0.5 gap-0.5 w-full">
-              {(['open', 'pending', 'resolved'] as ConversationStatus[]).map(
-                (tab) => (
-                  <TabsTrigger
-                    key={tab}
-                    value={tab}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-[13px] px-2 py-1 rounded-full capitalize h-6 data-[state=active]:bg-primary-600 data-[state=active]:text-white data-[state=active]:shadow-none"
+        {/* Filters */}
+        <div className="h-[58px] px-4 flex items-center justify-between gap-3 flex-shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="h-9 px-2 text-sm font-medium gap-1.5"
+              >
+                {filterLabels[activeTab]}, Newest
+                <IconChevronDown className="w-4 h-4 text-neutral-500" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-[150px]">
+              {(Object.keys(filterLabels) as ConversationListFilter[]).map(
+                (filter) => (
+                  <DropdownMenuItem
+                    key={filter}
+                    onClick={() => setActiveTab(filter)}
+                    className="flex justify-between"
                   >
-                    {tab}
-                    {tabCounts[tab] > 0 && (
-                      <span
-                        className={cn(
-                          'text-[10px] font-bold px-1 py-0 rounded-full leading-4 min-w-[14px] text-center',
-                          activeTab === tab
-                            ? 'bg-white/20 text-white'
-                            : tabUnread[tab] > 0
-                              ? 'bg-primary-100 text-primary-600'
-                              : 'bg-neutral-200 text-neutral-500',
-                        )}
-                      >
-                        {tabCounts[tab]}
-                      </span>
-                    )}
-                  </TabsTrigger>
+                    {filterLabels[filter]}
+                    {activeTab === filter && <IconCheck className="w-4 h-4" />}
+                  </DropdownMenuItem>
                 ),
               )}
-            </TabsList>
-          </Tabs>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <label className="flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
+            <Switch
+              checked={unrepliedOnly}
+              onCheckedChange={setUnrepliedOnly}
+              aria-label="Show unreplied conversations only"
+            />
+            Unreplied
+          </label>
         </div>
-
         {/* List */}
-        <div className="flex-1 overflow-auto">
+        <div className="">
           {isLoading
             ? Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex gap-2.5 p-3 border-b border-neutral-50 animate-pulse"
-                >
-                  <div className="w-8 h-8 rounded-full bg-neutral-100 flex-shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-3 bg-neutral-100 rounded-full w-24" />
-                    <div className="h-2.5 bg-neutral-100 rounded-full w-36" />
+                <div key={i} className="flex gap-3 px-5 py-3">
+                  <Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-24" />
+                    <Skeleton className="h-3 w-4/5" />
+                    <Skeleton className="h-5 w-14" />
                   </div>
                 </div>
               ))
-            : filtered.map((conv) => (
+            : visibleConversations.map((conv) => (
                 <ConversationRow
                   key={conv.id}
                   conversation={conv}
@@ -187,7 +210,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
                   onClick={() => onSelect(conv.id)}
                 />
               ))}
-          {!isLoading && filtered.length === 0 && (
+          {!isLoading && visibleConversations.length === 0 && (
             <div className="p-6 text-center text-[13px] text-neutral-400">
               No conversations found
             </div>
@@ -287,66 +310,91 @@ const ConversationRow: FC<{
   onClick: () => void;
 }> = ({ conversation, isActive, onClick }) => {
   const { contact, last_message, last_message_at, unread } = conversation;
+  const lastMessageWasSent =
+    getLatestMessage(conversation)?.direction === 'out';
 
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-full flex items-start gap-2.5 px-3 py-2.5 border-b border-neutral-50 text-left transition-colors',
-        isActive ? 'bg-neutral-50' : 'hover:bg-neutral-50/60',
-      )}
-    >
-      <Avatar
-        initials={contact.initials}
-        bg={contact.avatar_bg}
-        color={contact.avatar_color}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-baseline mb-0.5">
-          <span
+    <div className="px-3">
+      <button
+        onClick={onClick}
+        className={cn(
+          'mb-2 flex items-start gap-3 rounded-xl w-full px-3 py-3 text-left transition-colors',
+          isActive ? 'bg-primary-50' : 'hover:bg-neutral-50',
+        )}
+      >
+        <UserAvatar
+          src={contact.avatar_url}
+          alt={contact.name}
+          initials={contact.initials}
+          background={contact.avatar_bg}
+          color={contact.avatar_color}
+          platform={contact.platform}
+          badgeClassName="absolute -right-1 -bottom-1 h-5 w-5 justify-center rounded-full border-2 border-white bg-white p-0 shadow-sm"
+        />
+        <div className="flex-1 min-w-4 w-full">
+          <div className="flex justify-between items-baseline mb-1">
+            <span
+              className={cn(
+                'text-[15px] text-nowrap text-ellipsis',
+                unread
+                  ? 'font-bold text-neutral-900'
+                  : 'font-semibold text-neutral-800',
+              )}
+            >
+              {contact.name}
+            </span>
+            <span
+              className="text-xs text-neutral-500 ml-2 flex-shrink-0"
+              suppressHydrationWarning
+            >
+              {formatListTimestamp(last_message_at)}
+            </span>
+          </div>
+          <p
             className={cn(
-              'text-[13px] truncate',
-              unread
-                ? 'font-bold text-neutral-900'
-                : 'font-semibold text-neutral-800',
+              'truncate line-clamp-2',
+              unread ? 'text-neutral-700 font-medium' : 'text-neutral-400',
             )}
           >
-            {contact.name}
-          </span>
-          <span
-            className="text-[11px] text-neutral-400 ml-1 flex-shrink-0"
-            suppressHydrationWarning
-          >
-            {formatListTimestamp(last_message_at)}
-          </span>
-        </div>
-        <p
-          className={cn(
-            'text-xs truncate',
-            unread ? 'text-neutral-700 font-medium' : 'text-neutral-400',
-          )}
-        >
-          {last_message}
-        </p>
-        <div className="flex items-center gap-1.5 mt-1.5">
-          <PlatformBadge platform={contact.platform} />
-          {AI_FEATURES_ENABLED && (
+            {lastMessageWasSent && (
+              <IconArrowUpRight className="inline-block w-4 h-4 mr-1 text-primary-500 align-[-3px]" />
+            )}
+            {last_message}
+          </p>
+
+          <div className="flex items-center gap-1.5 mt-1.5">
             <Badge
               variant="secondary"
-              className="text-[11px] px-2 py-0 rounded-full h-4 bg-primary-50 text-primary-600 border border-primary-200 hover:bg-primary-50"
+              className="h-5 rounded-md border border-neutral-200 bg-white px-1.5 text-[11px] font-medium text-neutral-600 hover:bg-white"
             >
-              AI scheduled
+              {conversation.status === 'open'
+                ? 'Open'
+                : conversation.status === 'pending'
+                  ? 'Pending'
+                  : 'Resolved'}
             </Badge>
-          )}
-          {unread && (
-            // Animate only the unread dot so reordering does not flash the list.
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT.open} ml-auto flex-shrink-0 animate-fade-in motion-reduce:animate-none`}
-            />
-          )}
+            {AI_FEATURES_ENABLED && (
+              <Badge
+                variant="secondary"
+                className="text-[11px] px-2 py-0 rounded-full h-4 bg-primary-50 text-primary-600 border border-primary-200 hover:bg-primary-50"
+              >
+                AI scheduled
+              </Badge>
+            )}
+            {conversation.status === 'resolved' ? (
+              <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white">
+                <IconCheck className="h-3.5 w-3.5" />
+              </span>
+            ) : unread ? (
+              // Animate only the unread dot so reordering does not flash the list.
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT.open} ml-auto flex-shrink-0 animate-fade-in motion-reduce:animate-none`}
+              />
+            ) : null}
+          </div>
         </div>
-      </div>
-    </button>
+      </button>
+    </div>
   );
 };
 
@@ -383,11 +431,15 @@ const SearchResultRow: FC<{
         isActive ? 'bg-neutral-50' : 'hover:bg-neutral-50',
       )}
     >
-      <Avatar
+      <UserAvatar
+        src={contact.avatar_url}
+        alt={contact.name}
         initials={contact.initials}
-        bg={contact.avatar_bg}
+        background={contact.avatar_bg}
         color={contact.avatar_color}
+        platform={contact.platform}
         size="sm"
+        showPlatformBadge={false}
       />
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline">

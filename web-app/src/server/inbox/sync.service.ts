@@ -1,10 +1,19 @@
 import "server-only";
 
 import { createSupabaseServiceClient } from "@db/client";
-import type { InboxChannel, InboxProvider, ProviderChat, ProviderStoredMessage } from "@core/contracts/inbox.contract";
+import type {
+  InboxChannel,
+  InboxProvider,
+  ProviderChat,
+  ProviderStoredMessage,
+} from "@core/contracts/inbox.contract";
 
 export class InboxSyncService {
-  async syncAccount(provider: InboxProvider, providerAccountId: string, inboxChannel: InboxChannel): Promise<void> {
+  async syncAccount(
+    provider: InboxProvider,
+    providerAccountId: string,
+    inboxChannel: InboxChannel,
+  ): Promise<void> {
     const supabase = createSupabaseServiceClient();
     const { data: channel, error } = await supabase
       .from("channels")
@@ -16,23 +25,39 @@ export class InboxSyncService {
       .single();
     if (error || !channel) throw error ?? new Error("Inbox account not found.");
 
-    await supabase.from("channels").update({ connection_status: "syncing", connected: true })
-      .eq("id", channel.id).eq("business_id", channel.business_id);
+    await supabase
+      .from("channels")
+      .update({ connection_status: "syncing", connected: true })
+      .eq("id", channel.id)
+      .eq("business_id", channel.business_id);
 
     try {
       const chats = await provider.listChats(providerAccountId, inboxChannel);
       for (const chat of chats) {
         const messages = await provider.listMessages(chat.externalChatId);
-        await this.persistChat(channel.id, channel.business_id, inboxChannel, chat, messages);
+        await this.persistChat(
+          channel.id,
+          channel.business_id,
+          inboxChannel,
+          chat,
+          messages,
+        );
       }
-      const { error: finishError } = await supabase.from("channels").update({
-        connection_status: "connected",
-        connected: true,
-      }).eq("id", channel.id).eq("business_id", channel.business_id);
+      const { error: finishError } = await supabase
+        .from("channels")
+        .update({
+          connection_status: "connected",
+          connected: true,
+        })
+        .eq("id", channel.id)
+        .eq("business_id", channel.business_id);
       if (finishError) throw finishError;
     } catch (syncError) {
-      await supabase.from("channels").update({ connection_status: "error" })
-        .eq("id", channel.id).eq("business_id", channel.business_id);
+      await supabase
+        .from("channels")
+        .update({ connection_status: "error" })
+        .eq("id", channel.id)
+        .eq("business_id", channel.business_id);
       throw syncError;
     }
   }
@@ -46,7 +71,9 @@ export class InboxSyncService {
   ) {
     if (!messages.length && !chat.occurredAt) return;
     const supabase = createSupabaseServiceClient();
-    const sorted = [...messages].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+    const sorted = [...messages].sort(
+      (a, b) => a.occurredAt.getTime() - b.occurredAt.getTime(),
+    );
     const first = sorted[0];
     const last = sorted.at(-1);
     const conversationResult = await supabase
@@ -72,7 +99,9 @@ export class InboxSyncService {
         avatar_bg: "#dcfce7",
         avatar_color: "#15803d",
         platform: inboxChannel,
-        ...(inboxChannel === "whatsapp" ? { phone: chat.participantId } : { username: chat.participantId }),
+        ...(inboxChannel === "whatsapp"
+          ? { phone: chat.participantId }
+          : { username: chat.participantId }),
         first_contact: (first?.occurredAt ?? occurredAt).toISOString(),
         status: "new",
       },
@@ -82,12 +111,19 @@ export class InboxSyncService {
     };
 
     if (!conversation) {
-      const created = await supabase.from("conversations").insert({ ...values, status: "open" })
-        .select("id").single();
+      const created = await supabase
+        .from("conversations")
+        .insert({ ...values, status: "open" })
+        .select("id")
+        .single();
       if (created.error?.code === "23505") {
-        const raced = await supabase.from("conversations").select("id")
+        const raced = await supabase
+          .from("conversations")
+          .select("id")
           .eq("business_id", businessId)
-          .eq("channel_id", channelId).eq("channel_conversation_id", chat.externalChatId).single();
+          .eq("channel_id", channelId)
+          .eq("channel_conversation_id", chat.externalChatId)
+          .single();
         if (raced.error) throw raced.error;
         conversation = raced.data;
       } else if (created.error) {
@@ -96,8 +132,11 @@ export class InboxSyncService {
         conversation = created.data;
       }
     } else {
-      const updated = await supabase.from("conversations").update(values)
-        .eq("id", conversation.id).eq("business_id", businessId);
+      const updated = await supabase
+        .from("conversations")
+        .update(values)
+        .eq("id", conversation.id)
+        .eq("business_id", businessId);
       if (updated.error) throw updated.error;
     }
 
@@ -112,10 +151,12 @@ export class InboxSyncService {
       timestamp: message.occurredAt.toISOString(),
       read: message.direction === "out",
       delivery_status: message.direction === "out" ? "sent" : null,
-      delivery_updated_at: message.direction === "out" ? message.occurredAt.toISOString() : null,
+      delivery_updated_at:
+        message.direction === "out" ? message.occurredAt.toISOString() : null,
     }));
     const inserted = await supabase.from("messages").insert(rows);
-    if (inserted.error?.code !== "23505" && inserted.error) throw inserted.error;
+    if (inserted.error?.code !== "23505" && inserted.error)
+      throw inserted.error;
     if (inserted.error?.code === "23505") {
       for (const row of rows) {
         const retry = await supabase.from("messages").insert(row);
@@ -127,7 +168,7 @@ export class InboxSyncService {
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
-  return `${parts[0]?.[0] ?? "?"}${parts.length > 1 ? parts.at(-1)?.[0] ?? "" : ""}`.toUpperCase();
+  return `${parts[0]?.[0] ?? "?"}${parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : ""}`.toUpperCase();
 }
 
 export const inboxSyncService = new InboxSyncService();

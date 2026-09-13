@@ -9,6 +9,7 @@ const entitySchema = z.object({
   initials: z.string().min(1),
   avatar_bg: z.string().min(1),
   avatar_color: z.string().min(1),
+  avatar_url: z.string().url().nullish(),
   platform: ChannelContract.typeSchema,
   phone: z.string().nullish(),
   // Vive dentro do JSONB conversations.contact — string ISO na BD, Date no domínio.

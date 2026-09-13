@@ -1,6 +1,9 @@
 import "server-only";
 
-import { createSupabaseServerClient, createSupabaseServiceClient } from "@db/client";
+import {
+  createSupabaseServerClient,
+  createSupabaseServiceClient,
+} from "@db/client";
 import {
   DEFAULT_INBOX_CHANNEL,
   InboxContract,
@@ -13,7 +16,10 @@ import {
   type ProviderMessageEvent,
 } from "@core/contracts/inbox.contract";
 import { UnipileInboxProvider } from "./providers/unipile";
-import { createHostedAuthState, verifyHostedAuthState } from "./hosted-auth-state";
+import {
+  createHostedAuthState,
+  verifyHostedAuthState,
+} from "./hosted-auth-state";
 import { inboxSyncService } from "./sync.service";
 
 type ChannelRow = {
@@ -32,14 +38,18 @@ function appUrl() {
 
 async function authenticatedBusinessId(): Promise<string> {
   const supabase = await createSupabaseServerClient();
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
   if (userError || !user) throw new Error("Invalid session.");
   const { data, error } = await supabase
     .from("profiles")
     .select("business_id")
     .eq("id", user.id)
     .single();
-  if (error || !data?.business_id) throw new Error("User does not belong to a business.");
+  if (error || !data?.business_id)
+    throw new Error("User does not belong to a business.");
   return data.business_id as string;
 }
 
@@ -53,17 +63,24 @@ export class InboxService implements InboxProvider {
   private readonly provider: InboxProvider;
 
   constructor(name = process.env.INBOX_PROVIDER ?? "unipile") {
-    if (name !== "unipile") throw new Error(`Unsupported inbox provider: ${name}`);
+    if (name !== "unipile")
+      throw new Error(`Unsupported inbox provider: ${name}`);
     this.provider = new UnipileInboxProvider();
   }
 
-  get name(): InboxProviderName { return this.provider.name; }
-  async connect(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<string> {
+  get name(): InboxProviderName {
+    return this.provider.name;
+  }
+  async connect(
+    channel: InboxChannel = DEFAULT_INBOX_CHANNEL,
+  ): Promise<string> {
     const businessId = await authenticatedBusinessId();
     const supabase = await createSupabaseServerClient();
     const { data: existingChannel, error } = await supabase
       .from("channels")
-      .select("id, business_id, provider, provider_account_id, provider_identity_id")
+      .select(
+        "id, business_id, provider, provider_account_id, provider_identity_id",
+      )
       .eq("business_id", businessId)
       .eq("platform", channel)
       .eq("provider", this.name)
@@ -82,7 +99,9 @@ export class InboxService implements InboxProvider {
           connected: false,
           connection_status: "connecting",
         })
-        .select("id, business_id, provider, provider_account_id, provider_identity_id")
+        .select(
+          "id, business_id, provider, provider_account_id, provider_identity_id",
+        )
         .single();
       if (createError) throw createError;
       row = created as ChannelRow;
@@ -94,8 +113,14 @@ export class InboxService implements InboxProvider {
       if (updateError) throw updateError;
     }
 
-    if (row.business_id !== businessId) throw new Error("Account does not belong to the authenticated business.");
-    const state = await createHostedAuthState(businessId, row.id, this.name, channel);
+    if (row.business_id !== businessId)
+      throw new Error("Account does not belong to the authenticated business.");
+    const state = await createHostedAuthState(
+      businessId,
+      row.id,
+      this.name,
+      channel,
+    );
     const base = appUrl();
     const integrationUrl = `${base}/inbox/integration?channel=${encodeURIComponent(channel)}&popup=true`;
     const provider = this.provider;
@@ -110,8 +135,11 @@ export class InboxService implements InboxProvider {
         failureRedirectUrl: `${integrationUrl}&result=error`,
       });
     } catch (error) {
-      await supabase.from("channels").update({ connection_status: "error" })
-        .eq("id", row.id).eq("business_id", businessId);
+      await supabase
+        .from("channels")
+        .update({ connection_status: "error" })
+        .eq("id", row.id)
+        .eq("business_id", businessId);
       throw error;
     }
   }
@@ -119,10 +147,12 @@ export class InboxService implements InboxProvider {
   async receiveConnectionStatus(payload: unknown): Promise<void> {
     const parsed = InboxContract.hostedAuthCallbackSchema.parse(payload);
     const state = await verifyHostedAuthState(parsed.name);
-    if (state.provider !== this.name) throw new Error("Invalid state provider.");
+    if (state.provider !== this.name)
+      throw new Error("Invalid state provider.");
     const provider = this.provider;
     const account = await provider.getAccount(parsed.account_id);
-    if (account.channel !== state.channel) throw new Error("Invalid account channel.");
+    if (account.channel !== state.channel)
+      throw new Error("Invalid account channel.");
     const supabase = createSupabaseServiceClient();
     const { data: channel, error } = await supabase
       .from("channels")
@@ -134,48 +164,78 @@ export class InboxService implements InboxProvider {
       .is("deleted_at", null)
       .single();
     if (error || !channel) throw error ?? new Error("Channel not found.");
-    const connected = account.status === "connected" || account.status === "syncing";
-    const { error: accountUpdateError } = await supabase.from("channels").update({
-      provider_account_id: account.id,
-      account_name: account.name,
-      provider_metadata: account.metadata,
-      connection_status: "syncing",
-      connected: false,
-    }).eq("id", channel.id).eq("business_id", state.businessId);
+    const connected =
+      account.status === "connected" || account.status === "syncing";
+    const { error: accountUpdateError } = await supabase
+      .from("channels")
+      .update({
+        provider_account_id: account.id,
+        account_name: account.name,
+        provider_metadata: account.metadata,
+        connection_status: "syncing",
+        connected: false,
+      })
+      .eq("id", channel.id)
+      .eq("business_id", state.businessId);
     if (accountUpdateError) throw accountUpdateError;
 
     const providerIdentityId = await this.resolveProviderIdentity(account.id);
     if (!providerIdentityId) return;
-    if (channel.provider_identity_id && channel.provider_identity_id !== providerIdentityId) {
-      const { error: mismatchError } = await supabase.from("channels").update({
-        connection_status: "error",
-        connected: false,
-      }).eq("id", channel.id).eq("business_id", state.businessId);
+    if (
+      channel.provider_identity_id &&
+      channel.provider_identity_id !== providerIdentityId
+    ) {
+      const { error: mismatchError } = await supabase
+        .from("channels")
+        .update({
+          connection_status: "error",
+          connected: false,
+        })
+        .eq("id", channel.id)
+        .eq("business_id", state.businessId);
       if (mismatchError) throw mismatchError;
       return;
     }
-    const { error: updateError } = await supabase.from("channels").update({
-      provider_identity_id: providerIdentityId,
-      connection_status: account.status,
-      connected,
-      connected_at: connected ? new Date().toISOString() : null,
-    }).eq("id", channel.id).eq("business_id", state.businessId);
+    const { error: updateError } = await supabase
+      .from("channels")
+      .update({
+        provider_identity_id: providerIdentityId,
+        connection_status: account.status,
+        connected,
+        connected_at: connected ? new Date().toISOString() : null,
+      })
+      .eq("id", channel.id)
+      .eq("business_id", state.businessId);
     if (updateError) throw updateError;
   }
 
-  async syncHistory(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<void> {
+  async syncHistory(
+    channel: InboxChannel = DEFAULT_INBOX_CHANNEL,
+  ): Promise<void> {
     const businessId = await authenticatedBusinessId();
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.from("channels")
+    const { data, error } = await supabase
+      .from("channels")
       .select("provider, provider_account_id")
       .eq("provider", this.name)
-      .eq("business_id", businessId).eq("platform", channel)
-      .is("deleted_at", null).single();
-    if (error || !data?.provider_account_id) throw new Error(`Connect ${channelLabel(channel)} before importing history.`);
-    await inboxSyncService.syncAccount(this.provider, data.provider_account_id, channel);
+      .eq("business_id", businessId)
+      .eq("platform", channel)
+      .is("deleted_at", null)
+      .single();
+    if (error || !data?.provider_account_id)
+      throw new Error(
+        `Connect ${channelLabel(channel)} before importing history.`,
+      );
+    await inboxSyncService.syncAccount(
+      this.provider,
+      data.provider_account_id,
+      channel,
+    );
   }
 
-  async disconnect(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<void> {
+  async disconnect(
+    channel: InboxChannel = DEFAULT_INBOX_CHANNEL,
+  ): Promise<void> {
     const businessId = await authenticatedBusinessId();
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
@@ -191,37 +251,53 @@ export class InboxService implements InboxProvider {
     let providerIdentityId = data.provider_identity_id;
     if (data.provider_account_id) {
       try {
-        providerIdentityId = await this.provider.getAccountIdentity(data.provider_account_id);
+        providerIdentityId = await this.provider.getAccountIdentity(
+          data.provider_account_id,
+        );
       } catch {
         // A provider account that already lost its session may not expose its
         // owner profile anymore. Disconnection must still remain possible.
       }
       await this.provider.disconnectAccount(data.provider_account_id);
     }
-    const { error: updateError } = await supabase.from("channels").update({
-      provider_account_id: null,
-      provider_identity_id: providerIdentityId,
-      provider_metadata: {},
-      account_name: null,
-      connected: false,
-      connected_at: null,
-      connection_status: "disconnected",
-    }).eq("id", data.id).eq("business_id", businessId);
+    const { error: updateError } = await supabase
+      .from("channels")
+      .update({
+        provider_account_id: null,
+        provider_identity_id: providerIdentityId,
+        provider_metadata: {},
+        account_name: null,
+        connected: false,
+        connected_at: null,
+        connection_status: "disconnected",
+      })
+      .eq("id", data.id)
+      .eq("business_id", businessId);
     if (updateError) throw updateError;
   }
 
-  async connectionStatus(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<InboxConnectionStatus> {
+  async connectionStatus(
+    channel: InboxChannel = DEFAULT_INBOX_CHANNEL,
+  ): Promise<InboxConnectionStatus> {
     const businessId = await authenticatedBusinessId();
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.from("channels")
-      .select("connection_status").eq("business_id", businessId)
-      .eq("provider", this.name).eq("platform", channel)
-      .is("deleted_at", null).maybeSingle();
+    const { data, error } = await supabase
+      .from("channels")
+      .select("connection_status")
+      .eq("business_id", businessId)
+      .eq("provider", this.name)
+      .eq("platform", channel)
+      .is("deleted_at", null)
+      .maybeSingle();
     if (error) throw error;
-    return InboxContract.connectionStatusSchema.parse(data?.connection_status ?? "disconnected");
+    return InboxContract.connectionStatusSchema.parse(
+      data?.connection_status ?? "disconnected",
+    );
   }
 
-  async cancelConnection(channel: InboxChannel = DEFAULT_INBOX_CHANNEL): Promise<void> {
+  async cancelConnection(
+    channel: InboxChannel = DEFAULT_INBOX_CHANNEL,
+  ): Promise<void> {
     const businessId = await authenticatedBusinessId();
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase
@@ -236,16 +312,22 @@ export class InboxService implements InboxProvider {
   }
 
   receiveWebhook(headers: Headers, payload: unknown) {
-    if (!this.verifyWebhook(headers)) throw new Error("Webhook authentication failed.");
+    if (!this.verifyWebhook(headers))
+      throw new Error("Webhook authentication failed.");
     const event = this.parseWebhook(payload);
-    return event ? this.persist(this.name, event) : Promise.resolve("ignored" as const);
+    return event
+      ? this.persist(this.name, event)
+      : Promise.resolve("ignored" as const);
   }
 
   async handleWebhook(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const connectionStatus = url.searchParams.get("event") === "connection";
     if (!connectionStatus && !this.verifyWebhook(request.headers)) {
-      return Response.json({ error: "Invalid webhook authentication" }, { status: 401 });
+      return Response.json(
+        { error: "Invalid webhook authentication" },
+        { status: 401 },
+      );
     }
     // Bound memory usage even if the sender omits Content-Length.
     const reader = request.body?.getReader();
@@ -264,17 +346,28 @@ export class InboxService implements InboxProvider {
       }
     }
     let payload: unknown;
-    try { payload = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
-    catch { return Response.json({ error: "Malformed JSON" }, { status: 400 }); }
+    try {
+      payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } catch {
+      return Response.json({ error: "Malformed JSON" }, { status: 400 });
+    }
     try {
       if (connectionStatus) {
         await this.receiveConnectionStatus(payload);
         return Response.json({ status: "accepted" });
       }
-      return Response.json({ status: await this.receiveWebhook(request.headers, payload) });
+      return Response.json({
+        status: await this.receiveWebhook(request.headers, payload),
+      });
     } catch {
-      return Response.json({ error: connectionStatus ? "Invalid connection callback" : "Event processing failed" },
-        { status: connectionStatus ? 401 : 503 });
+      return Response.json(
+        {
+          error: connectionStatus
+            ? "Invalid connection callback"
+            : "Event processing failed",
+        },
+        { status: connectionStatus ? 401 : 503 },
+      );
     }
   }
   private async persist(providerName: string, event: ProviderEvent) {
@@ -288,53 +381,79 @@ export class InboxService implements InboxProvider {
       .is("deleted_at", null)
       .maybeSingle();
     if (channelError) throw channelError;
-    if (!channel) throw new Error("Webhook account is not associated with a business.");
+    if (!channel)
+      throw new Error("Webhook account is not associated with a business.");
 
     if (event.type === "account_status") {
-      const identityPending = !channel.provider_identity_id
-        || channel.connection_status === "connecting"
-        || channel.connection_status === "syncing";
+      const identityPending =
+        !channel.provider_identity_id ||
+        channel.connection_status === "connecting" ||
+        channel.connection_status === "syncing";
       const providerIdentityId = identityPending
         ? await this.resolveProviderIdentity(event.providerAccountId)
         : channel.provider_identity_id;
       if (!providerIdentityId) return "accepted" as const;
-      if (channel.provider_identity_id && channel.provider_identity_id !== providerIdentityId) {
-        const { error } = await supabase.from("channels").update({
-          connection_status: "error",
-          connected: false,
-        }).eq("id", channel.id).eq("business_id", channel.business_id);
+      if (
+        channel.provider_identity_id &&
+        channel.provider_identity_id !== providerIdentityId
+      ) {
+        const { error } = await supabase
+          .from("channels")
+          .update({
+            connection_status: "error",
+            connected: false,
+          })
+          .eq("id", channel.id)
+          .eq("business_id", channel.business_id);
         if (error) throw error;
         return "ignored" as const;
       }
-      const connected = event.status === "connected" || event.status === "syncing";
-      const { error } = await supabase.from("channels").update({
-        provider_identity_id: providerIdentityId,
-        connection_status: event.status,
-        connected,
-      }).eq("id", channel.id).eq("business_id", channel.business_id);
+      const connected =
+        event.status === "connected" || event.status === "syncing";
+      const { error } = await supabase
+        .from("channels")
+        .update({
+          provider_identity_id: providerIdentityId,
+          connection_status: event.status,
+          connected,
+        })
+        .eq("id", channel.id)
+        .eq("business_id", channel.business_id);
       if (error) throw error;
       return "accepted" as const;
     }
 
-    return this.persistMessage(channel.id as string, channel.business_id as string, event);
+    return this.persistMessage(
+      channel.id as string,
+      channel.business_id as string,
+      event,
+    );
   }
 
-  private async resolveProviderIdentity(accountId: string): Promise<string | null> {
+  private async resolveProviderIdentity(
+    accountId: string,
+  ): Promise<string | null> {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         return await this.provider.getAccountIdentity(accountId);
       } catch {
-        if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250));
+        if (attempt < 2)
+          await new Promise((resolve) => setTimeout(resolve, 250));
       }
     }
     return null;
   }
 
-  private async persistMessage(channelId: string, businessId: string, event: ProviderMessageEvent) {
+  private async persistMessage(
+    channelId: string,
+    businessId: string,
+    event: ProviderMessageEvent,
+  ) {
     const supabase = createSupabaseServiceClient();
+    const avatarUrl = await this.resolveSenderAvatar(event);
     const conversationResult = await supabase
       .from("conversations")
-      .select("id")
+      .select("id, contact")
       .eq("channel_id", channelId)
       .eq("channel_conversation_id", event.externalChatId)
       .eq("business_id", businessId)
@@ -358,8 +477,13 @@ export class InboxService implements InboxProvider {
             initials: initials(event.sender.name),
             avatar_bg: color[0],
             avatar_color: color[1],
+            ...(avatarUrl
+              ? { avatar_url: avatarUrl }
+              : {}),
             platform: event.channel,
-            ...(event.channel === "whatsapp" ? { phone: event.sender.id } : { username: event.sender.id }),
+            ...(event.channel === "whatsapp"
+              ? { phone: event.sender.id }
+              : { username: event.sender.id }),
             first_contact: event.occurredAt.toISOString(),
             status: "new",
           },
@@ -368,14 +492,14 @@ export class InboxService implements InboxProvider {
           status: "open",
           unread: true,
         })
-        .select("id")
+        .select("id, contact")
         .single();
       if (createError?.code === "23505") {
         // Two first-message deliveries can race before either request sees a
         // conversation. Reuse the row created by the winning request.
         const raced = await supabase
           .from("conversations")
-          .select("id")
+          .select("id, contact")
           .eq("channel_id", channelId)
           .eq("channel_conversation_id", event.externalChatId)
           .eq("business_id", businessId)
@@ -390,8 +514,12 @@ export class InboxService implements InboxProvider {
       }
     }
 
+    if (!conversation) throw new Error("Conversation could not be resolved.");
+
     if (event.direction === "out") {
-      const reconciliationWindow = new Date(event.occurredAt.getTime() - 5 * 60_000).toISOString();
+      const reconciliationWindow = new Date(
+        event.occurredAt.getTime() - 5 * 60_000,
+      ).toISOString();
       const pending = await supabase
         .from("messages")
         .select("id")
@@ -421,10 +549,14 @@ export class InboxService implements InboxProvider {
         if (reconciled.error?.code === "23505") return "duplicate" as const;
         if (reconciled.error) throw reconciled.error;
 
-        const conversationUpdate = await supabase.from("conversations").update({
-          last_message: event.text,
-          last_message_at: event.occurredAt.toISOString(),
-        }).eq("id", conversation.id).eq("business_id", businessId);
+        const conversationUpdate = await supabase
+          .from("conversations")
+          .update({
+            last_message: event.text,
+            last_message_at: event.occurredAt.toISOString(),
+          })
+          .eq("id", conversation.id)
+          .eq("business_id", businessId);
         if (conversationUpdate.error) throw conversationUpdate.error;
         return "accepted" as const;
       }
@@ -440,41 +572,99 @@ export class InboxService implements InboxProvider {
       timestamp: event.occurredAt.toISOString(),
       read: event.direction === "out",
       delivery_status: event.direction === "out" ? "sent" : null,
-      delivery_updated_at: event.direction === "out" ? event.occurredAt.toISOString() : null,
+      delivery_updated_at:
+        event.direction === "out" ? event.occurredAt.toISOString() : null,
     });
     if (insertError?.code === "23505") return "duplicate" as const;
     if (insertError) throw insertError;
 
-    const { error: updateError } = await supabase.from("conversations").update({
-      last_message: event.text,
-      last_message_at: event.occurredAt.toISOString(),
-      ...(event.direction === "in" ? { unread: true } : {}),
-    }).eq("id", conversation.id).eq("business_id", businessId);
+    const { error: updateError } = await supabase
+      .from("conversations")
+      .update({
+        last_message: event.text,
+        last_message_at: event.occurredAt.toISOString(),
+        ...(event.direction === "in" ? { unread: true } : {}),
+        ...(event.direction === "in" && avatarUrl
+          ? {
+              contact: {
+                ...(isRecord(conversation.contact)
+                  ? conversation.contact
+                  : {}),
+                avatar_url: avatarUrl,
+              },
+            }
+          : {}),
+      })
+      .eq("id", conversation.id)
+      .eq("business_id", businessId);
     if (updateError) throw updateError;
     return "accepted" as const;
   }
-  ensureWebhooks(url: string) { return this.provider.ensureWebhooks(url); }
-  listChats(accountId: string, channel: InboxChannel) { return this.provider.listChats(accountId, channel); }
-  listMessages(chatId: string) { return this.provider.listMessages(chatId); }
-  createHostedAuthLink(input: HostedAuthRequest) { return this.provider.createHostedAuthLink(input); }
-  getAccount(accountId: string) { return this.provider.getAccount(accountId); }
-  getAccountIdentity(accountId: string) { return this.provider.getAccountIdentity(accountId); }
-  disconnectAccount(accountId: string) { return this.provider.disconnectAccount(accountId); }
-  sendMessage(input: Parameters<InboxProvider["sendMessage"]>[0]) { return this.provider.sendMessage(input); }
-  markChatRead(input: Parameters<InboxProvider["markChatRead"]>[0]) { return this.provider.markChatRead(input); }
-  verifyWebhook(headers: Headers) { return this.provider.verifyWebhook(headers); }
-  parseWebhook(payload: unknown) { return this.provider.parseWebhook(payload); }
+  private async resolveSenderAvatar(
+    event: ProviderMessageEvent,
+  ): Promise<string | null> {
+    if (event.direction !== "in" || !event.sender.attendeeId) return null;
+    try {
+      return await this.provider.getAttendeeAvatar(
+        event.providerAccountId,
+        event.sender.attendeeId,
+      );
+    } catch {
+      // Message persistence must continue when profile enrichment is unavailable.
+      return null;
+    }
+  }
+  ensureWebhooks(url: string) {
+    return this.provider.ensureWebhooks(url);
+  }
+  listChats(accountId: string, channel: InboxChannel) {
+    return this.provider.listChats(accountId, channel);
+  }
+  listMessages(chatId: string) {
+    return this.provider.listMessages(chatId);
+  }
+  getAttendeeAvatar(accountId: string, attendeeId: string) {
+    return this.provider.getAttendeeAvatar(accountId, attendeeId);
+  }
+  createHostedAuthLink(input: HostedAuthRequest) {
+    return this.provider.createHostedAuthLink(input);
+  }
+  getAccount(accountId: string) {
+    return this.provider.getAccount(accountId);
+  }
+  getAccountIdentity(accountId: string) {
+    return this.provider.getAccountIdentity(accountId);
+  }
+  disconnectAccount(accountId: string) {
+    return this.provider.disconnectAccount(accountId);
+  }
+  sendMessage(input: Parameters<InboxProvider["sendMessage"]>[0]) {
+    return this.provider.sendMessage(input);
+  }
+  markChatRead(input: Parameters<InboxProvider["markChatRead"]>[0]) {
+    return this.provider.markChatRead(input);
+  }
+  verifyWebhook(headers: Headers) {
+    return this.provider.verifyWebhook(headers);
+  }
+  parseWebhook(payload: unknown) {
+    return this.provider.parseWebhook(payload);
+  }
 }
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
-  return `${parts[0]?.[0] ?? "?"}${parts.length > 1 ? parts.at(-1)?.[0] ?? "" : ""}`.toUpperCase();
+  return `${parts[0]?.[0] ?? "?"}${parts.length > 1 ? (parts.at(-1)?.[0] ?? "") : ""}`.toUpperCase();
 }
 
 function hash(value: string) {
   let result = 0;
   for (const char of value) result = (result * 31 + char.charCodeAt(0)) >>> 0;
   return result;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function channelLabel(channel: InboxChannel) {

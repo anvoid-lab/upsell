@@ -3,14 +3,16 @@
 import { useState } from "react";
 import type { Conversation, ConversationStatus } from "@/types";
 
+export type ConversationListFilter = ConversationStatus | "all";
+
 interface UseConversationListReturn {
   conversations: Conversation[];
   filtered: Conversation[];
-  activeTab: ConversationStatus;
+  activeTab: ConversationListFilter;
   searchQuery: string;
   unreadCount: number;
   isLoading: boolean;
-  setActiveTab: (tab: ConversationStatus) => void;
+  setActiveTab: (tab: ConversationListFilter) => void;
   setSearchQuery: (q: string) => void;
 }
 
@@ -23,7 +25,7 @@ export function useConversationList(
   statusOverrides: Record<string, ConversationStatus> = {},
   conversations: Conversation[] = [],
 ): UseConversationListReturn {
-  const [activeTab, setActiveTab] = useState<ConversationStatus>("open");
+  const [activeTab, setActiveTab] = useState<ConversationListFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   const withOverrides = conversations.map((c) =>
@@ -33,10 +35,11 @@ export function useConversationList(
   // Mais recente primeiro — é isto que faz uma conversa saltar para o topo
   // quando chega uma mensagem nova.
   const byStatus = withOverrides
-    .filter((c) => c.status === activeTab)
+    .filter((c) => activeTab === "all" || c.status === activeTab)
     .sort(
       (a, b) =>
-        new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime(),
+        new Date(b.last_message_at).getTime() -
+        new Date(a.last_message_at).getTime(),
     );
 
   const filtered = searchQuery.trim()

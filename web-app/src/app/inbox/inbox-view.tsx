@@ -240,19 +240,21 @@ export function InboxView({
         conversations={conversations}
       />
       {emptyState === 'inbox' ? (
-        <div className="flex flex-1 ">
-          {showConnectionWarning && (
-            <ConnectionWarning
-              onReconnect={() => {
-                const channel = channels.find((item) =>
-                  connectionNeedsAttention(
-                    item.connection_status ?? 'disconnected',
-                  ),
-                );
-                if (channel) setIntegrating(channel);
-              }}
-            />
-          )}
+        <div className="flex flex-1">
+          <div className="flex">
+            {showConnectionWarning && (
+              <ConnectionWarning
+                onReconnect={() => {
+                  const channel = channels.find((item) =>
+                    connectionNeedsAttention(
+                      item.connection_status ?? 'disconnected',
+                    ),
+                  );
+                  if (channel) setIntegrating(channel);
+                }}
+              />
+            )}
+          </div>
           <div className="flex flex-grow w-full">
             <InboxChatPanel
               selectedId={selectedId}
