@@ -52,4 +52,24 @@ describe("MessageContract.entitySchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts a media-only send request", () => {
+    const result = MessageContract.sendRequestSchema.safeParse({
+      conversation_id: "42",
+      content: "",
+      client_message_id: "22222222-2222-4222-8222-222222222222",
+      attachment_count: 2,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a message without text or attachments", () => {
+    const result = MessageContract.sendRequestSchema.safeParse({
+      conversation_id: "42",
+      content: "",
+      client_message_id: "22222222-2222-4222-8222-222222222222",
+      attachment_count: 0,
+    });
+    expect(result.success).toBe(false);
+  });
 });

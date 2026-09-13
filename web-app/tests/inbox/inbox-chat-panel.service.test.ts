@@ -178,6 +178,30 @@ describe("manual message delivery", () => {
     }));
   });
 
+  it("accepts a media-only message and forwards every file to the provider", async () => {
+    const image = new File(["image"], "photo.jpg", { type: "image/jpeg" });
+    const video = new File(["video"], "clip.mp4", { type: "video/mp4" });
+
+    const sent = await inboxChatPanelService.sendMessage(
+      "42",
+      "",
+      clientMessageId,
+      [image, video],
+    );
+
+    expect(sent.attachment).toMatchObject([
+      { type: "image", filename: "photo.jpg", size_bytes: 5 },
+      { type: "video", filename: "clip.mp4", size_bytes: 5 },
+    ]);
+    expect(providerSend).toHaveBeenCalledWith(expect.objectContaining({
+      text: "",
+      attachments: [
+        expect.objectContaining({ content: image, filename: "photo.jpg", mimeType: "image/jpeg" }),
+        expect.objectContaining({ content: video, filename: "clip.mp4", mimeType: "video/mp4" }),
+      ],
+    }));
+  });
+
   it("records a confirmed provider rejection as retryable failure", async () => {
     providerSend.mockRejectedValue(new InboxProviderError("unipile", 429, "rate limited"));
 
@@ -197,6 +221,31 @@ describe("manual message delivery", () => {
     const pending = await inboxChatPanelService.sendMessage("42", "Hello", clientMessageId);
 
     expect(pending.delivery_status).toBe("sending");
+  });
+
+  it("marks a provider-accepted message as sent even when no external id is returned", async () => {
+    providerSend.mockResolvedValue({ externalMessageId: null });
+
+    const sent = await inboxChatPanelService.sendMessage("42", "Hello", clientMessageId);
+
+    expect(sent).toMatchObject({ delivery_status: "sent" });
+  });
+
+  it("waits for canonical webhook ids when a media batch is accepted", async () => {
+    const file = new File(["image"], "photo.jpg", { type: "image/jpeg" });
+
+    const sent = await inboxChatPanelService.sendMessage(
+      "42",
+      "Caption",
+      clientMessageId,
+      [file],
+    );
+
+    expect(sent.delivery_status).toBe("sent");
+    expect(sent.channel_message_id).toBeFalsy();
+    expect(providerSend).toHaveBeenCalledWith(expect.objectContaining({
+      attachments: [expect.objectContaining({ filename: "photo.jpg" })],
+    }));
   });
 
   it("reuses a successful message when the same client request is repeated", async () => {

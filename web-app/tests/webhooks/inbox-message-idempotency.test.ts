@@ -20,6 +20,7 @@ function createDatabase() {
     from(table: string) {
       const filters: Record<string, unknown> = {};
       let acceptedStatuses: string[] | null = null;
+      let timestampUpperBound: string | null = null;
       let operation: Operation = { type: "select" };
       let executed = false;
       let result: { data?: unknown; error: null | { code: string; message: string } };
@@ -59,15 +60,22 @@ function createDatabase() {
             (!("channel_message_id" in filters) || candidate.channel_message_id === filters.channel_message_id) &&
             (!acceptedStatuses || acceptedStatuses.includes(String(candidate.delivery_status))),
           );
-          result = { data: row ? { id: row.id } : null, error: null };
+          result = { data: row ?? null, error: null };
           return result;
         }
 
         if (operation.type === "update" && table === "messages") {
-          const entry = [...messages.entries()].find(([, candidate]) => candidate.id === filters.id);
-          if (entry) {
-            const [key, candidate] = entry;
-            messages.set(key, { ...candidate, ...operation.value });
+          for (const [key, candidate] of messages.entries()) {
+            const matches = Object.entries(filters).every(([field, value]) =>
+              candidate[field] === value || (field === "deleted_at" && value === null),
+            );
+            const beforeTimestamp = !timestampUpperBound ||
+              String(candidate.timestamp) <= timestampUpperBound;
+            const accepted = !acceptedStatuses ||
+              acceptedStatuses.includes(String(candidate.delivery_status));
+            if (matches && beforeTimestamp && accepted) {
+              messages.set(key, { ...candidate, ...operation.value });
+            }
           }
           result = { data: null, error: null };
           return result;
@@ -92,6 +100,10 @@ function createDatabase() {
           return chain;
         },
         gte: () => chain,
+        lte: (_key: string, value: string) => {
+          timestampUpperBound = value;
+          return chain;
+        },
         order: () => chain,
         limit: () => chain,
         insert: (value: Record<string, unknown>) => {
@@ -141,6 +153,12 @@ const event = {
   timestamp: "2026-09-12T09:00:00Z",
   message: "Hello",
   sender: { attendee_provider_id: "customer", attendee_name: "Customer" },
+  attachments: [{
+    id: "attachment-1",
+    url: "https://cdn.example.test/photo.jpg",
+    mimetype: "image/jpeg",
+    type: "img",
+  }],
 };
 
 describe("Instagram webhook message idempotency", () => {
@@ -159,6 +177,9 @@ describe("Instagram webhook message idempotency", () => {
     expect(await service.receiveWebhook(headers, event)).toBe("duplicate");
     expect(conversations).toHaveLength(1);
     expect(messages).toHaveLength(1);
+    expect([...messages.values()][0]).toMatchObject({
+      attachment: [{ media_url: "https://cdn.example.test/photo.jpg", type: "image" }],
+    });
   });
 
   it("reuses the winning conversation when first-message deliveries race", async () => {
@@ -202,6 +223,33 @@ describe("Instagram webhook message idempotency", () => {
     expect(messages.get("pending")).toMatchObject({
       channel_message_id: "instagram-message",
       delivery_status: "sent",
+    });
+  });
+
+  it("advances outbound messages to read when a read receipt arrives", async () => {
+    conversations.set("instagram-chat", { id: "conversation-1" });
+    messages.set("stored", {
+      id: "message-1",
+      business_id: "business-1",
+      conversation_id: "conversation-1",
+      channel_id: "channel-1",
+      channel_message_id: "instagram-message",
+      content: "Hello",
+      direction: "out",
+      delivery_status: "sent",
+      timestamp: "2026-09-12T09:00:00Z",
+      deleted_at: null,
+    });
+
+    const receipt = { ...event, event: "message_read" };
+    expect(await new InboxService().receiveWebhook(
+      new Headers({ "Unipile-Auth": "test-webhook-secret" }),
+      receipt,
+    )).toBe("accepted");
+    expect(messages.get("stored")).toMatchObject({
+      read: true,
+      delivery_status: "read",
+      read_at: "2026-09-12T09:00:00.000Z",
     });
   });
 });

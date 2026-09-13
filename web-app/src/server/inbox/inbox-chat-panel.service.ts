@@ -38,6 +38,7 @@ class InboxChatPanelService {
     conversationId: string,
     content: string,
     clientMessageId: string,
+    attachments: File[] = [],
   ): Promise<Message> {
     validateContract(
       MessageContract.sendRequestSchema,
@@ -45,6 +46,7 @@ class InboxChatPanelService {
         conversation_id: conversationId,
         content,
         client_message_id: clientMessageId,
+        attachment_count: attachments.length,
       },
       "InboxChatPanelService.sendMessage",
     );
@@ -53,6 +55,24 @@ class InboxChatPanelService {
     const pending = await this.createPendingMessage({
       conversation_id: conversationId,
       content,
+      attachment: attachments.map((file) => ({
+        external_id: null,
+        media_url: null,
+        type: file.type.startsWith("image/")
+          ? "image"
+          : file.type.startsWith("video/")
+            ? "video"
+            : file.type.startsWith("audio/")
+              ? "audio"
+              : "file",
+        mime_type: file.type || null,
+        filename: file.name,
+        size_bytes: file.size,
+        width: null,
+        height: null,
+        unavailable: false,
+        metadata: {},
+      })),
       direction: "out",
       timestamp: now,
       read: false,
@@ -61,7 +81,7 @@ class InboxChatPanelService {
       delivery_status: "pending",
       delivery_updated_at: now,
     });
-    return this.deliverMessage(pending, delivery);
+    return this.deliverMessage(pending, delivery, attachments);
   }
 
   async retryMessage(messageId: string): Promise<Message> {
@@ -268,6 +288,7 @@ class InboxChatPanelService {
       accountId: string;
       externalChatId: string;
     },
+    attachments: File[] = [],
   ): Promise<Message> {
     if (message.delivery_status === "sent") return message;
 
@@ -295,12 +316,17 @@ class InboxChatPanelService {
       "InboxChatPanelService.deliverMessage.claim",
     );
 
-    let externalMessageId: string;
+    let externalMessageId: string | null;
     try {
       const sent = await new InboxService(delivery.provider).sendMessage({
         accountId: delivery.accountId,
         externalChatId: delivery.externalChatId,
         text: claimed.content,
+        attachments: attachments.map((file) => ({
+          content: file,
+          filename: file.name,
+          mimeType: file.type,
+        })),
       });
       externalMessageId = sent.externalMessageId;
     } catch (providerError) {
@@ -329,10 +355,14 @@ class InboxChatPanelService {
     }
 
     const sentAt = new Date();
+    // Instagram fans a media batch out into one provider message per file and
+    // another one for the caption. Let those canonical webhook IDs reconcile
+    // the local row instead of attaching a possibly partial response ID.
+    const confirmedMessageId = attachments.length === 0 ? externalMessageId : null;
     const sent = await supabase
       .from("messages")
       .update({
-        channel_message_id: externalMessageId,
+        ...(confirmedMessageId ? { channel_message_id: confirmedMessageId } : {}),
         delivery_status: "sent",
         delivery_error: null,
         delivery_updated_at: sentAt.toISOString(),
@@ -344,7 +374,9 @@ class InboxChatPanelService {
     if (sent.error || !sent.data) {
       // The provider accepted the message. Never turn this into a retryable
       // failure merely because the local confirmation write failed.
-      return { ...claimed, channel_message_id: externalMessageId };
+      return confirmedMessageId
+        ? { ...claimed, channel_message_id: confirmedMessageId }
+        : { ...claimed, delivery_status: "sent", delivery_updated_at: sentAt };
     }
 
     await this.conversations.update(message.conversation_id, {

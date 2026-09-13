@@ -16,6 +16,7 @@ export type {
   FollowUpStatus,
   FollowUpType,
   Message,
+  MessageAttachmentType,
   MessageDeliveryStatus,
   MessageDirection,
   InboxConnectionStatus,

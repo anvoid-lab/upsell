@@ -216,7 +216,14 @@ const conversations: ConversationDoc[] = [
 // conversation_id aqui é a chave LOCAL (id("conv", n)) — trocada pelo id real
 // da BD no momento do insert, via conversationIdByLocalKey.
 
-const messages: Message[] = [
+const messages: Array<
+  Omit<Message, "attachment" | "hidden" | "reactions" | "provider_metadata"> & {
+    attachment?: Message["attachment"];
+    hidden?: boolean;
+    reactions?: Message["reactions"];
+    provider_metadata?: Message["provider_metadata"];
+  }
+> = [
   { id: id("msg", "1-1"), conversation_id: id("conv", 1), content: "Bom dia! Vi que vendem capulanas. Têm com padrão tradicional angolano?", direction: "in",  timestamp: ts(70),  read: true },
   { id: id("msg", "1-2"), conversation_id: id("conv", 1), content: "Bom dia, Esperança! Sim, temos vários padrões tradicionais. Envio fotos já!", direction: "out", timestamp: ts(65), read: true },
   { id: id("msg", "1-3"), conversation_id: id("conv", 1), content: "Tem capulanas de Angola com padrão tradicional?", direction: "in", timestamp: ts(12), read: false },

@@ -15,11 +15,20 @@ export async function fetchConversationAction(id: string): Promise<Conversation 
 }
 
 export async function sendMessageAction(
-  conversationId: string,
-  content: string,
-  clientMessageId: string,
+  formData: FormData,
 ): Promise<Message> {
-  return inboxChatPanelService.sendMessage(conversationId, content, clientMessageId);
+  const conversationId = String(formData.get("conversation_id") ?? "");
+  const content = String(formData.get("content") ?? "");
+  const clientMessageId = String(formData.get("client_message_id") ?? "");
+  const attachments = formData
+    .getAll("attachments")
+    .filter((value): value is File => value instanceof File && value.size > 0);
+  return inboxChatPanelService.sendMessage(
+    conversationId,
+    content,
+    clientMessageId,
+    attachments,
+  );
 }
 
 export async function retryMessageAction(messageId: string): Promise<Message> {

@@ -1,8 +1,8 @@
 import "server-only";
 
 import { timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 import {
-  InboxContract,
   InboxProviderError,
   type HostedAuthRequest,
   type InboxChannel,
@@ -11,12 +11,227 @@ import {
   type ProviderAccount,
   type ProviderChat,
   type ProviderEvent,
-  type ProviderStoredMessage,
+  type NormalizedInboxMessage,
 } from "@core/contracts/inbox.contract";
+import type { MessageAttachment, MessageAttachmentType } from "@core/contracts/message.contract";
 
-/*
- * Unipile implementation. Contracts and payload validation are defined in core/contracts/inbox.contract.
- */
+// Provider response schemas stay private to this adapter. The rest of the inbox
+// only consumes the normalized contracts exported by core/contracts.
+const attachmentSchema = z.object({
+  id: z.string().nullish(),
+  url: z.string().nullish(),
+  type: z.string().nullish(),
+  mimetype: z.string().nullish(),
+  filename: z.string().nullish(),
+  name: z.string().nullish(),
+  file_size: z.coerce.number().nonnegative().nullish(),
+  size: z.union([
+    z.coerce.number().nonnegative(),
+    z.object({
+      width: z.coerce.number().nonnegative().nullish(),
+      height: z.coerce.number().nonnegative().nullish(),
+      bytes: z.coerce.number().nonnegative().nullish(),
+    }).passthrough(),
+  ]).nullish(),
+  sticker: z.boolean().nullish(),
+  unavailable: z.boolean().nullish(),
+}).passthrough();
+
+const hostedLinkSchema = z.object({ url: z.string().url() });
+const sendResponseSchema = z.object({ message_id: z.string().min(1).optional() }).passthrough();
+const accountSchema = z.object({
+  id: z.string().min(1), type: z.string(), name: z.string().nullish(),
+  identifier: z.string().nullish(),
+  connection_params: z.record(z.string(), z.unknown()).optional(),
+  sources: z.array(z.object({ status: z.string() }).passthrough()).optional(),
+}).passthrough();
+const userProfileSchema = z.object({ provider_id: z.string().min(1) }).passthrough();
+const attendeeSchema = z.object({ picture_url: z.string().url().nullish() }).passthrough();
+const messageEventSchema = z.object({
+  event: z.string(), account_id: z.string().min(1), account_type: z.string(),
+  account_info: z.object({ user_id: z.string().optional() }).passthrough().optional(),
+  chat_id: z.string().min(1), message_id: z.string().min(1),
+  timestamp: z.coerce.date(), message: z.string().default(""),
+  attachments: z.array(attachmentSchema).default([]),
+  sender: z.object({
+    attendee_id: z.string().optional(), attendee_provider_id: z.string().optional(),
+    attendee_name: z.string().optional(), attendee_profile_url: z.string().url().optional(),
+  }).passthrough(),
+}).passthrough();
+const messageMutationEventSchema = z.object({
+  event: z.enum([
+    "message_read",
+    "message_delivered",
+    "message_edited",
+    "message_deleted",
+    "message_reaction",
+  ]),
+  account_id: z.string().min(1),
+  account_type: z.string(),
+  chat_id: z.string().min(1),
+  message_id: z.string().min(1),
+  timestamp: z.coerce.date(),
+}).passthrough();
+const accountStatusSchema = z.object({ AccountStatus: z.object({
+  account_id: z.string().min(1), account_type: z.string(), message: z.string(),
+}) });
+const webhookListSchema = z.object({ items: z.array(
+  z.object({
+    id: z.string(), request_url: z.string(), source: z.string(),
+    events: z.array(z.string()).default([]),
+  }).passthrough(),
+) }).passthrough();
+const chatListSchema = z.object({
+  items: z.array(z.object({
+    id: z.string(), account_type: z.string(), attendee_provider_id: z.string().optional(),
+    provider_id: z.string().optional(), name: z.string().nullish(),
+    timestamp: z.string().nullish(), unread_count: z.number().default(0),
+  }).passthrough()),
+  cursor: z.string().nullish(),
+}).passthrough();
+const storedMessageListSchema = z.object({
+  items: z.array(z.object({
+    id: z.string(), text: z.string().nullish(), timestamp: z.coerce.date(),
+    is_sender: z.union([z.boolean(), z.number()]),
+    attachments: z.array(attachmentSchema).default([]),
+    seen: z.union([z.boolean(), z.number()]).nullish(),
+    delivered: z.union([z.boolean(), z.number()]).nullish(),
+    hidden: z.union([z.boolean(), z.number()]).nullish(),
+    deleted: z.union([z.boolean(), z.number()]).nullish(),
+    edited: z.union([z.boolean(), z.number()]).nullish(),
+    is_event: z.union([z.boolean(), z.number()]).nullish(),
+    event_type: z.union([z.string(), z.number()]).nullish(),
+    quoted: z.unknown().nullish(),
+    reactions: z.array(z.object({
+      value: z.string(), sender_id: z.string().nullish(),
+      is_sender: z.union([z.boolean(), z.number()]).nullish(),
+      timestamp: z.coerce.date().nullish(),
+    }).passthrough()).default([]),
+  }).passthrough()),
+  cursor: z.string().nullish(),
+}).passthrough();
+const storedMessageSchema = storedMessageListSchema.shape.items.element;
+
+type ExternalAttachment = z.infer<typeof attachmentSchema>;
+
+function normalizeAttachmentType(input: ExternalAttachment): MessageAttachmentType {
+  if (input.sticker) return "sticker";
+  const mime = input.mimetype?.toLowerCase() ?? "";
+  const type = input.type?.toLowerCase() ?? "";
+  if (mime.startsWith("image/") || ["img", "image", "photo"].includes(type)) return "image";
+  if (mime.startsWith("video/") || type === "video") return "video";
+  if (mime.startsWith("audio/") || ["audio", "voice"].includes(type)) return "audio";
+  if (mime || ["file", "document", "doc"].includes(type)) return "file";
+  return "unknown";
+}
+
+function normalizeAttachment(input: ExternalAttachment): MessageAttachment | null {
+  if (!input.url) return null;
+  const dimensions = typeof input.size === "object" && input.size ? input.size : null;
+  return {
+    external_id: input.id ?? null,
+    media_url: publicMediaUrl(input.url),
+    type: normalizeAttachmentType(input),
+    mime_type: input.mimetype ?? null,
+    filename: input.filename ?? input.name ?? null,
+    size_bytes: input.file_size ?? dimensions?.bytes ?? (typeof input.size === "number" ? input.size : null),
+    width: dimensions?.width ?? null,
+    height: dimensions?.height ?? null,
+    unavailable: input.unavailable ?? false,
+    metadata: Object.fromEntries(Object.entries(input).filter(([key]) => ![
+      "id", "url", "type", "mimetype", "filename", "name", "file_size", "size", "unavailable",
+    ].includes(key))),
+  };
+}
+
+function publicMediaUrl(url: string): string {
+  if (!url.startsWith("att://")) return url;
+  const encodedUrl = url.slice("att://".length).split("/")[1];
+  if (!encodedUrl) return url;
+  try {
+    const decoded = Buffer.from(encodedUrl, "base64url").toString("utf8");
+    return decoded.startsWith("https://") ? decoded : url;
+  } catch {
+    return url;
+  }
+}
+
+function meaningfulText(text: string | null | undefined, attachments: MessageAttachment[]) {
+  const value = text ?? "";
+  if (
+    attachments.length > 0 &&
+    /^(?:you|.+) sent (?:a |an )?(?:photo|image|video)\.?$/i.test(value.trim())
+  ) return "";
+  return value;
+}
+
+function normalizeMessage(message: z.infer<typeof storedMessageSchema>): NormalizedInboxMessage {
+  const attachments = normalizeAttachments(message.attachments);
+  return {
+    externalMessageId: message.id,
+    text: meaningfulText(message.text, attachments),
+    attachments,
+    direction: Boolean(message.is_sender) ? "out" : "in",
+    occurredAt: message.timestamp,
+    quotedMessage: normalizeQuotedMessage(message.quoted),
+    delivered: Boolean(message.delivered),
+    seen: Boolean(message.seen),
+    hidden: Boolean(message.hidden) || isReactionHelperEvent(
+      message.text,
+      message.is_event,
+    ),
+    deleted: Boolean(message.deleted),
+    edited: Boolean(message.edited),
+    reactions: message.reactions.map((reaction) => ({
+      value: reaction.value,
+      senderId: reaction.sender_id ?? null,
+      direction: reaction.is_sender == null
+        ? null
+        : reaction.is_sender ? "out" : "in",
+      occurredAt: reaction.timestamp ?? null,
+    })),
+    metadata: message,
+  };
+}
+
+function isReactionHelperEvent(
+  text: string | null | undefined,
+  isEvent: boolean | number | null | undefined,
+): boolean {
+  return Boolean(isEvent) && /^reacted\s+.+\s+to your message\.?$/iu.test(
+    text?.trim() ?? "",
+  );
+}
+
+function normalizeQuotedMessage(value: unknown): NormalizedInboxMessage["quotedMessage"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const quoted = value as Record<string, unknown>;
+  const rawAttachments = Array.isArray(quoted.attachments)
+    ? attachmentSchema.array().safeParse(quoted.attachments)
+    : null;
+  const isSender = quoted.is_sender;
+  return {
+    externalMessageId:
+      typeof quoted.id === "string"
+        ? quoted.id
+        : typeof quoted.message_id === "string"
+          ? quoted.message_id
+          : null,
+    text: typeof quoted.text === "string"
+      ? quoted.text
+      : typeof quoted.message === "string" ? quoted.message : "",
+    attachments: rawAttachments?.success
+      ? normalizeAttachments(rawAttachments.data)
+      : [],
+    direction: typeof isSender === "boolean" || typeof isSender === "number"
+      ? Boolean(isSender) ? "out" : "in"
+      : null,
+  };
+}
+
+function normalizeAttachments(items: ExternalAttachment[]): MessageAttachment[] {
+  return items.map(normalizeAttachment).filter((item): item is MessageAttachment => Boolean(item));
+}
 function config() {
   const apiUrl = process.env.UNIPILE_API_URL?.replace(/\/$/, "");
   const apiKey = process.env.UNIPILE_API_KEY;
@@ -109,7 +324,7 @@ export class UnipileInboxProvider implements InboxProvider {
   readonly name = "unipile" as const;
 
   async ensureWebhooks(requestUrl: string): Promise<void> {
-    const existing = InboxContract.unipile.webhookListSchema.parse(
+    const existing = webhookListSchema.parse(
       await request("/webhooks?limit=250"),
     );
     const secret = process.env.UNIPILE_WEBHOOK_SECRET;
@@ -122,7 +337,17 @@ export class UnipileInboxProvider implements InboxProvider {
       { key: "Unipile-Auth", value: secret },
     ];
     const definitions = [
-      { source: "messaging", events: ["message_received"] },
+      {
+        source: "messaging",
+        events: [
+          "message_received",
+          "message_read",
+          "message_delivered",
+          "message_edited",
+          "message_deleted",
+          "message_reaction",
+        ],
+      },
       {
         source: "account_status",
         events: [
@@ -141,14 +366,16 @@ export class UnipileInboxProvider implements InboxProvider {
       },
     ];
     for (const definition of definitions) {
-      if (
-        existing.items.some(
-          (item) =>
-            item.request_url === requestUrl &&
-            item.source === definition.source,
-        )
-      )
-        continue;
+      const matching = existing.items.filter(
+        (item) => item.request_url === requestUrl && item.source === definition.source,
+      );
+      const requiredEvents = new Set(definition.events);
+      if (matching.some((item) =>
+        item.events.length === requiredEvents.size &&
+        item.events.every((event) => requiredEvents.has(event)))) continue;
+      for (const stale of matching) {
+        await request(`/webhooks/${encodeURIComponent(stale.id)}`, { method: "DELETE" });
+      }
       await request("/webhooks", {
         method: "POST",
         body: JSON.stringify({
@@ -178,7 +405,7 @@ export class UnipileInboxProvider implements InboxProvider {
         limit: "250",
       });
       if (cursor) query.set("cursor", cursor);
-      const page = InboxContract.unipile.chatListSchema.parse(
+      const page = chatListSchema.parse(
         await request(`/chats?${query}`),
       );
       for (const chat of page.items) {
@@ -201,27 +428,20 @@ export class UnipileInboxProvider implements InboxProvider {
     return chats;
   }
 
-  async listMessages(externalChatId: string): Promise<ProviderStoredMessage[]> {
-    const messages: ProviderStoredMessage[] = [];
+  async listMessages(externalChatId: string): Promise<NormalizedInboxMessage[]> {
+    const messages: NormalizedInboxMessage[] = [];
     let cursor: string | null | undefined;
     const seen = new Set<string>();
     do {
       const query = new URLSearchParams({ limit: "250" });
       if (cursor) query.set("cursor", cursor);
-      const page = InboxContract.unipile.storedMessageListSchema.parse(
+      const page = storedMessageListSchema.parse(
         await request(
           `/chats/${encodeURIComponent(externalChatId)}/messages?${query}`,
         ),
       );
       for (const message of page.items) {
-        messages.push({
-          externalMessageId: message.id,
-          text:
-            message.text ||
-            (message.attachments.length ? "Attachment" : "Message"),
-          direction: Boolean(message.is_sender) ? "out" : "in",
-          occurredAt: message.timestamp,
-        });
+        messages.push(normalizeMessage(message));
       }
       cursor = page.cursor;
       if (cursor && seen.has(cursor))
@@ -231,12 +451,18 @@ export class UnipileInboxProvider implements InboxProvider {
     return messages;
   }
 
+  async getMessage(externalMessageId: string): Promise<NormalizedInboxMessage> {
+    return normalizeMessage(storedMessageSchema.parse(
+      await request(`/messages/${encodeURIComponent(externalMessageId)}`),
+    ));
+  }
+
   async getAttendeeAvatar(
     accountId: string,
     attendeeId: string,
   ): Promise<string | null> {
     const query = new URLSearchParams({ account_id: accountId });
-    const attendee = InboxContract.unipile.attendeeSchema.parse(
+    const attendee = attendeeSchema.parse(
       await request(
         `/chat_attendees/${encodeURIComponent(attendeeId)}?${query}`,
       ),
@@ -260,7 +486,7 @@ export class UnipileInboxProvider implements InboxProvider {
       failure_redirect_url: input.failureRedirectUrl,
       name: input.state,
     };
-    return InboxContract.unipile.hostedLinkSchema.parse(
+    return hostedLinkSchema.parse(
       await request("/hosted/accounts/link", {
         method: "POST",
         body: JSON.stringify(payload),
@@ -269,7 +495,7 @@ export class UnipileInboxProvider implements InboxProvider {
   }
 
   async getAccount(accountId: string): Promise<ProviderAccount> {
-    const raw = InboxContract.unipile.accountSchema.parse(
+    const raw = accountSchema.parse(
       await request(`/accounts/${encodeURIComponent(accountId)}`),
     );
     const channel = parseChannel(raw.type);
@@ -286,7 +512,7 @@ export class UnipileInboxProvider implements InboxProvider {
 
   async getAccountIdentity(accountId: string): Promise<string> {
     const query = new URLSearchParams({ account_id: accountId });
-    const profile = InboxContract.unipile.userProfileSchema.parse(
+    const profile = userProfileSchema.parse(
       await request(`/users/me?${query}`),
     );
     return profile.provider_id;
@@ -302,17 +528,20 @@ export class UnipileInboxProvider implements InboxProvider {
     accountId: string;
     externalChatId: string;
     text: string;
+    attachments: Array<{ content: Blob; filename: string; mimeType: string }>;
   }) {
     const form = new FormData();
     form.set("text", input.text);
     form.set("account_id", input.accountId);
-    const body = InboxContract.unipile.sendResponseSchema.parse(
-      await request(
+    for (const attachment of input.attachments) {
+      form.append("attachments", attachment.content, attachment.filename);
+    }
+    const result = await request(
         `/chats/${encodeURIComponent(input.externalChatId)}/messages`,
         { method: "POST", body: form },
-      ),
-    );
-    return { externalMessageId: body.message_id };
+      );
+    const body = sendResponseSchema.safeParse(result);
+    return { externalMessageId: body.success ? body.data.message_id ?? null : null };
   }
 
   async markChatRead(input: {
@@ -340,7 +569,7 @@ export class UnipileInboxProvider implements InboxProvider {
 
   parseWebhook(payload: unknown): ProviderEvent | null {
     const account =
-      InboxContract.unipile.accountStatusSchema.safeParse(payload);
+      accountStatusSchema.safeParse(payload);
     const accountChannel = account.success
       ? parseChannel(account.data.AccountStatus.account_type)
       : null;
@@ -353,7 +582,29 @@ export class UnipileInboxProvider implements InboxProvider {
       };
     }
 
-    const parsed = InboxContract.unipile.messageEventSchema.safeParse(payload);
+    const mutation = messageMutationEventSchema.safeParse(payload);
+    if (mutation.success) {
+      const channel = parseChannel(mutation.data.account_type);
+      if (!channel) return null;
+      const mutations = {
+        message_read: "read",
+        message_delivered: "delivered",
+        message_edited: "updated",
+        message_deleted: "deleted",
+        message_reaction: "reaction",
+      } as const;
+      return {
+        type: "message_mutation",
+        mutation: mutations[mutation.data.event],
+        channel,
+        providerAccountId: mutation.data.account_id,
+        externalChatId: mutation.data.chat_id,
+        externalMessageId: mutation.data.message_id,
+        occurredAt: mutation.data.timestamp,
+      };
+    }
+
+    const parsed = messageEventSchema.safeParse(payload);
     if (!parsed.success) return null;
     const channel = parseChannel(parsed.data.account_type);
     if (!channel) return null;
@@ -370,7 +621,8 @@ export class UnipileInboxProvider implements InboxProvider {
       externalChatId: parsed.data.chat_id,
       externalMessageId: parsed.data.message_id,
       occurredAt: parsed.data.timestamp,
-      text: parsed.data.message || "Attachment",
+      text: meaningfulText(parsed.data.message, normalizeAttachments(parsed.data.attachments)),
+      attachments: normalizeAttachments(parsed.data.attachments),
       direction: ownerId && ownerId === senderId ? "out" : "in",
       sender: {
         id: senderId,
@@ -381,6 +633,7 @@ export class UnipileInboxProvider implements InboxProvider {
           ? { attendeeId: parsed.data.sender.attendee_id }
           : {}),
       },
+      quotedMessage: null,
     };
   }
 }

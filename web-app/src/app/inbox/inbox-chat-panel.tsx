@@ -11,6 +11,7 @@ import {
   IconSparkles,
   IconPencil,
   IconCheck,
+  IconChecks,
   IconAlertCircle,
   IconClockHour3,
   IconLoader2,
@@ -146,6 +147,65 @@ function groupMessagesByDate(messages: Message[]) {
   ];
 }
 
+function messagesForDisplay(messages: Message[]): Message[] {
+  return messages.filter((message) =>
+    !message.hidden && !/^reacted\s+.+\s+to your message\.?$/iu.test(message.content.trim()),
+  ).reduce<Message[]>((result, message) => {
+    const previous = result.at(-1);
+    const closeTogether = previous
+      ? Math.abs(message.timestamp.getTime() - previous.timestamp.getTime()) <= 10_000
+      : false;
+    const mediaBatch = Boolean(
+      previous && (previous.attachment.length > 0 || message.attachment.length > 0),
+    );
+    if (!previous || previous.direction !== message.direction || !closeTogether || !mediaBatch) {
+      result.push(message);
+      return result;
+    }
+
+    const combinedAttachments = [...previous.attachment, ...message.attachment];
+    const hasRemoteMedia = combinedAttachments.some(
+      (attachment) => attachment.media_url && !attachment.media_url.startsWith('blob:'),
+    );
+    const attachmentKeys = new Set<string>();
+    const attachment = combinedAttachments.filter((item, index) => {
+      if (hasRemoteMedia && (!item.media_url || item.media_url.startsWith('blob:'))) return false;
+      const key = item.external_id ?? item.media_url ?? `${item.filename ?? 'attachment'}:${index}`;
+      if (attachmentKeys.has(key)) return false;
+      attachmentKeys.add(key);
+      return true;
+    });
+    const content = [...new Set([previous.content.trim(), message.content.trim()].filter(Boolean))]
+      .join('\n');
+    const statuses = [previous.delivery_status, message.delivery_status];
+    const deliveryStatus = statuses.includes('failed') ? 'failed'
+      : statuses.includes('read') ? 'read'
+        : statuses.includes('delivered') ? 'delivered'
+          : statuses.includes('sent') ? 'sent'
+            : statuses.includes('sending') ? 'sending'
+              : statuses.includes('pending') ? 'pending' : null;
+
+    result[result.length - 1] = {
+      ...previous,
+      content,
+      attachment,
+      timestamp: message.timestamp,
+      channel_message_id: message.channel_message_id ?? previous.channel_message_id,
+      delivery_status: deliveryStatus,
+      delivery_error: message.delivery_error ?? previous.delivery_error,
+      delivery_updated_at: message.delivery_updated_at ?? previous.delivery_updated_at,
+      delivered_at: message.delivered_at ?? previous.delivered_at,
+      read_at: message.read_at ?? previous.read_at,
+      edited_at: message.edited_at ?? previous.edited_at,
+      provider_deleted_at: message.provider_deleted_at ?? previous.provider_deleted_at,
+      reactions: [...previous.reactions, ...message.reactions],
+      quoted_message: previous.quoted_message ?? message.quoted_message,
+      reply_to_message_id: previous.reply_to_message_id ?? message.reply_to_message_id,
+    };
+    return result;
+  }, []);
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface InboxChatPanelProps {
@@ -169,8 +229,11 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     isLoading,
     isSending,
     isAddingNote,
+    selectedAttachments,
     retryingMessageIds,
     setReplyText,
+    addAttachments,
+    removeAttachment,
     handleSendReply,
     handleRetryMessage,
     handleAddNote,
@@ -203,6 +266,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (conversation) setConvStatus(conversation.status);
@@ -212,6 +276,10 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
     setEditedSuggestion(suggestion?.message ?? '');
     setIsEditingSuggestion(false);
   }, [suggestion]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [selectedId, messages]);
 
   const handleStatusChange = async (
     newStatus: ConversationStatus,
@@ -287,7 +355,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
       t.label.toLowerCase().includes(templateQuery) ||
       t.text.toLowerCase().includes(templateQuery),
   );
-  const groups = groupMessagesByDate(messages);
+  const groups = groupMessagesByDate(messagesForDisplay(messages));
 
   const handleComposerSubmit = async () => {
     if (replyMode === 'reply') {
@@ -451,6 +519,7 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
             </div>
           </div>
         ))}
+        <div ref={messagesEndRef} aria-hidden="true" />
       </div>
 
       {/* ── AI suggestion ──
@@ -545,7 +614,17 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
 
       {/* ── Reply box ── */}
       <div className="mx-4 mb-4 flex-shrink-0">
-        <input ref={fileInputRef} type="file" className="hidden" />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            if (event.target.files?.length) addAttachments(event.target.files);
+            event.target.value = '';
+          }}
+        />
         <div
           className={cn(
             'border rounded-2xl overflow-hidden bg-white shadow-sm',
@@ -626,6 +705,40 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
                 >
                   {e}
                 </button>
+              ))}
+            </div>
+          )}
+
+          {replyMode === 'reply' && selectedAttachments.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto border-b border-neutral-100 px-3 py-2">
+              {selectedAttachments.map((item) => (
+                <div
+                  key={item.id}
+                  className="group relative h-20 w-20 flex-none overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100"
+                >
+                  {item.type === 'video' ? (
+                    <video
+                      src={item.previewUrl}
+                      className="h-full w-full object-cover"
+                      muted
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.previewUrl}
+                      alt={item.file.name}
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${item.file.name}`}
+                    onClick={() => removeAttachment(item.id)}
+                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/65 text-white"
+                  >
+                    <IconX className="h-3 w-3" />
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -753,7 +866,13 @@ export const InboxChatPanel: FC<InboxChatPanelProps> = ({
               </div>
               <Button
                 onClick={() => void handleComposerSubmit()}
-                disabled={!replyText.trim() || isSending || isAddingNote}
+                disabled={
+                  (replyMode === 'reply'
+                    ? !replyText.trim() && selectedAttachments.length === 0
+                    : !replyText.trim()) ||
+                  isSending ||
+                  isAddingNote
+                }
                 size="sm"
                 className={cn(
                   'rounded-full h-7 px-4 text-xs',
@@ -807,6 +926,7 @@ const MessageBubble: FC<{
   const isFailed = deliveryStatus === 'failed';
   return (
     <div
+      data-message-id={message.id}
       className={cn(
         'flex max-w-[78%] items-start gap-2 ',
         // Uma mensagem recebida aparece sem o vendedor ter feito nada: entrar
@@ -842,7 +962,51 @@ const MessageBubble: FC<{
               : 'bg-white text-neutral-800 rounded-2xl rounded-bl-md border border-neutral-100',
           )}
         >
-          {message.content}
+          {message.quoted_message && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!message.reply_to_message_id) return;
+                const target = document.querySelector<HTMLElement>(
+                  `[data-message-id="${CSS.escape(message.reply_to_message_id)}"]`,
+                );
+                target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target?.animate(
+                  [{ opacity: 0.55 }, { opacity: 1 }],
+                  { duration: 700, easing: 'ease-out' },
+                );
+              }}
+              className={cn(
+                'mb-2 flex w-full items-center gap-2 overflow-hidden border-l-2 px-2 py-1 text-left text-xs opacity-80',
+                isOut ? 'border-white/60 bg-white/10' : 'border-primary-400 bg-neutral-50',
+                message.reply_to_message_id && 'cursor-pointer hover:opacity-100',
+              )}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">
+                  {message.quoted_message.direction === 'out'
+                    ? 'You'
+                    : message.quoted_message.direction === 'in'
+                      ? contact.name
+                      : 'Replied message'}
+                </span>
+                <span className="block max-w-64 truncate">
+                  {message.quoted_message.text || attachmentSummary(message.quoted_message.attachments)}
+                </span>
+              </span>
+              <QuotedAttachmentPreview attachments={message.quoted_message.attachments} />
+            </button>
+          )}
+          {message.attachment.length > 0 && (
+            <MessageAttachments attachments={message.attachment} />
+          )}
+          {message.provider_deleted_at ? (
+            <p className="italic opacity-70">Message deleted</p>
+          ) : message.content && (
+            <p className={cn(message.attachment.length > 0 && 'mt-2')}>
+              <LinkifiedText text={message.content} />
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1.5 mt-1 px-1">
           <span
@@ -861,10 +1025,26 @@ const MessageBubble: FC<{
               <IconClockHour3 className="w-3 h-3" /> Pending
             </span>
           )}
-          {isOut && deliveryStatus === 'sent' && (
-            <span className="flex items-center gap-1 text-[10px] text-primary-500">
-              <IconCheck className="w-3 h-3" /> Sent
+          {isOut && (deliveryStatus === 'sent' || deliveryStatus === 'delivered') && (
+            <span
+              aria-label="Sent"
+              title="Sent"
+              className="flex items-center text-primary-500"
+            >
+              <IconCheck className="w-3.5 h-3.5" />
             </span>
+          )}
+          {isOut && deliveryStatus === 'read' && (
+            <span
+              aria-label="Seen"
+              title="Seen"
+              className="flex items-center text-primary-500"
+            >
+              <IconChecks className="w-3.5 h-3.5" />
+            </span>
+          )}
+          {message.edited_at && (
+            <span className="text-[10px] text-neutral-400">Edited</span>
           )}
           {isOut && isFailed && (
             <div className="flex items-center gap-1.5 text-[10px] text-red-600">
@@ -890,6 +1070,19 @@ const MessageBubble: FC<{
             </div>
           )}
         </div>
+        {message.reactions.length > 0 && (
+          <div className="-mt-0.5 flex gap-1 px-1">
+            {message.reactions.map((reaction, index) => (
+              <span
+                key={`${reaction.sender_id ?? 'sender'}:${reaction.value}:${index}`}
+                className="rounded-full border border-neutral-200 bg-white px-1.5 py-0.5 text-xs shadow-sm"
+                title={reaction.direction === 'out' ? 'You reacted' : `${contact.name} reacted`}
+              >
+                {reaction.value}
+              </span>
+            ))}
+          </div>
+        )}
         {isOut && isFailed && message.delivery_error && (
           <p className="mt-1 max-w-sm px-1 text-right text-[10px] text-red-500">
             {message.delivery_error}
@@ -899,3 +1092,131 @@ const MessageBubble: FC<{
     </div>
   );
 };
+
+const QuotedAttachmentPreview: FC<{
+  attachments: Message['attachment'];
+}> = ({ attachments }) => {
+  const attachment = attachments.find((item) =>
+    item.media_url && !item.unavailable &&
+    (item.type === 'image' || item.type === 'sticker' || item.type === 'video'),
+  );
+  if (!attachment?.media_url) return null;
+  return attachment.type === 'video' ? (
+    <video
+      src={attachment.media_url}
+      muted
+      playsInline
+      preload="metadata"
+      className="h-11 w-11 flex-none rounded-md object-cover"
+    />
+  ) : (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={attachment.media_url}
+      alt="Quoted attachment"
+      className="h-11 w-11 flex-none rounded-md object-cover"
+    />
+  );
+};
+
+function attachmentSummary(attachments: Message['attachment']): string {
+  if (attachments.length === 0) return 'Message';
+  if (attachments.length > 1) return `${attachments.length} attachments`;
+  switch (attachments[0]?.type) {
+    case 'image': return 'Photo';
+    case 'video': return 'Video';
+    case 'audio': return 'Audio';
+    default: return 'Attachment';
+  }
+}
+
+const MessageAttachments: FC<{ attachments: Message['attachment'] }> = ({
+  attachments,
+}) => (
+  <div
+    className={cn(
+      'grid gap-1.5 overflow-hidden rounded-xl',
+      attachments.length > 1 && 'grid-cols-2',
+    )}
+  >
+    {attachments.map((attachment, index) => {
+      const url = attachment.media_url;
+      if (!url || attachment.unavailable) {
+        return (
+          <div
+            key={attachment.external_id ?? index}
+            className="flex min-h-20 items-center justify-center rounded-lg bg-black/5 px-3 text-xs opacity-70"
+          >
+            Media unavailable
+          </div>
+        );
+      }
+      if (attachment.type === 'video') {
+        return (
+          <video
+            key={attachment.external_id ?? url}
+            src={url}
+            controls
+            playsInline
+            preload="metadata"
+            className="max-h-72 w-full rounded-lg object-cover"
+          />
+        );
+      }
+      if (attachment.type === 'image' || attachment.type === 'sticker') {
+        return (
+          <a
+            key={attachment.external_id ?? url}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative block min-h-32 min-w-48 overflow-hidden rounded-lg"
+          >
+            {/* Provider CDNs are dynamic, so a native image avoids coupling
+                the inbox to a hostname allowlist. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt={attachment.filename ?? 'Message attachment'}
+              className="h-full min-h-32 w-full object-cover"
+            />
+          </a>
+        );
+      }
+      return (
+        <a
+          key={attachment.external_id ?? url}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-h-16 items-center gap-2 rounded-lg bg-black/5 px-3 text-xs underline underline-offset-2"
+        >
+          <IconFileText className="h-4 w-4" />
+          {attachment.filename ?? 'Open attachment'}
+        </a>
+      );
+    })}
+  </div>
+);
+
+const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+
+const LinkifiedText: FC<{ text: string }> = ({ text }) => (
+  <>
+    {text.split(URL_PATTERN).map((part, index) =>
+      /^https?:\/\//.test(part) ? (
+        <a
+          key={`${part}-${index}`}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="break-all underline underline-offset-2"
+        >
+          {part}
+        </a>
+      ) : (
+        part
+      ),
+    )}
+  </>
+);

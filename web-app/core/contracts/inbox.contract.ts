@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { MessageAttachment } from "./message.contract";
 
 export type InboxChannel = "whatsapp" | "instagram";
 export type InboxProviderName = "unipile";
@@ -36,8 +37,27 @@ export type ProviderMessageEvent = {
   externalMessageId: string;
   occurredAt: Date;
   text: string;
+  attachments: MessageAttachment[];
   direction: "in" | "out";
   sender: { id: string; name: string; attendeeId?: string };
+  quotedMessage: NormalizedQuotedMessage | null;
+  delivered?: boolean;
+  seen?: boolean;
+  hidden?: boolean;
+  deleted?: boolean;
+  edited?: boolean;
+  reactions?: NormalizedMessageReaction[];
+  metadata?: Record<string, unknown>;
+};
+
+export type ProviderMessageMutationEvent = {
+  type: "message_mutation";
+  mutation: "delivered" | "read" | "updated" | "deleted" | "reaction";
+  channel: InboxChannel;
+  providerAccountId: string;
+  externalChatId: string;
+  externalMessageId: string;
+  occurredAt: Date;
 };
 
 export type ProviderAccountEvent = {
@@ -47,7 +67,10 @@ export type ProviderAccountEvent = {
   status: InboxConnectionStatus;
 };
 
-export type ProviderEvent = ProviderMessageEvent | ProviderAccountEvent;
+export type ProviderEvent =
+  | ProviderMessageEvent
+  | ProviderMessageMutationEvent
+  | ProviderAccountEvent;
 
 export type ProviderChat = {
   externalChatId: string;
@@ -57,18 +80,42 @@ export type ProviderChat = {
   occurredAt: Date | null;
 };
 
-export type ProviderStoredMessage = {
+export type NormalizedInboxMessage = {
   externalMessageId: string;
   text: string;
+  attachments: MessageAttachment[];
   direction: "in" | "out";
   occurredAt: Date;
+  quotedMessage: NormalizedQuotedMessage | null;
+  delivered: boolean;
+  seen: boolean;
+  hidden: boolean;
+  deleted: boolean;
+  edited: boolean;
+  reactions: NormalizedMessageReaction[];
+  metadata: Record<string, unknown>;
+};
+
+export type NormalizedQuotedMessage = {
+  externalMessageId: string | null;
+  text: string;
+  attachments: MessageAttachment[];
+  direction: "in" | "out" | null;
+};
+
+export type NormalizedMessageReaction = {
+  value: string;
+  senderId: string | null;
+  direction: "in" | "out" | null;
+  occurredAt: Date | null;
 };
 
 export interface InboxProvider {
   readonly name: InboxProviderName;
   ensureWebhooks(requestUrl: string): Promise<void>;
   listChats(accountId: string, channel: InboxChannel): Promise<ProviderChat[]>;
-  listMessages(externalChatId: string): Promise<ProviderStoredMessage[]>;
+  listMessages(externalChatId: string): Promise<NormalizedInboxMessage[]>;
+  getMessage(externalMessageId: string): Promise<NormalizedInboxMessage>;
   getAttendeeAvatar(accountId: string, attendeeId: string): Promise<string | null>;
   createHostedAuthLink(request: HostedAuthRequest): Promise<string>;
   getAccount(accountId: string): Promise<ProviderAccount>;
@@ -78,7 +125,8 @@ export interface InboxProvider {
     accountId: string;
     externalChatId: string;
     text: string;
-  }): Promise<{ externalMessageId: string }>;
+    attachments: Array<{ content: Blob; filename: string; mimeType: string }>;
+  }): Promise<{ externalMessageId: string | null }>;
   markChatRead(input: {
     accountId: string;
     externalChatId: string;
@@ -113,102 +161,6 @@ const hostedAuthCallbackSchema = z.object({
   name: z.string().min(1),
 });
 
-const unipileHostedLinkSchema = z.object({ url: z.string().url() });
-const unipileSendResponseSchema = z
-  .object({ message_id: z.string().min(1) })
-  .passthrough();
-const unipileAccountSchema = z
-  .object({
-    id: z.string().min(1),
-    type: z.string(),
-    name: z.string().nullish(),
-    identifier: z.string().nullish(),
-    connection_params: z.record(z.string(), z.unknown()).optional(),
-    sources: z.array(z.object({ status: z.string() }).passthrough()).optional(),
-  })
-  .passthrough();
-const unipileUserProfileSchema = z
-  .object({
-    provider_id: z.string().min(1),
-  })
-  .passthrough();
-const unipileAttendeeSchema = z
-  .object({
-    picture_url: z.string().url().nullish(),
-  })
-  .passthrough();
-const unipileMessageEventSchema = z
-  .object({
-    event: z.string(),
-    account_id: z.string().min(1),
-    account_type: z.string(),
-    account_info: z
-      .object({ user_id: z.string().optional() })
-      .passthrough()
-      .optional(),
-    chat_id: z.string().min(1),
-    message_id: z.string().min(1),
-    timestamp: z.coerce.date(),
-    message: z.string().default(""),
-    sender: z
-      .object({
-        attendee_id: z.string().optional(),
-        attendee_provider_id: z.string().optional(),
-        attendee_name: z.string().optional(),
-        attendee_profile_url: z.string().url().optional(),
-      })
-      .passthrough(),
-  })
-  .passthrough();
-const unipileAccountStatusSchema = z.object({
-  AccountStatus: z.object({
-    account_id: z.string().min(1),
-    account_type: z.string(),
-    message: z.string(),
-  }),
-});
-const unipileWebhookListSchema = z
-  .object({
-    items: z.array(
-      z.object({ request_url: z.string(), source: z.string() }).passthrough(),
-    ),
-  })
-  .passthrough();
-const unipileChatListSchema = z
-  .object({
-    items: z.array(
-      z
-        .object({
-          id: z.string(),
-          account_type: z.string(),
-          attendee_provider_id: z.string().optional(),
-          provider_id: z.string().optional(),
-          name: z.string().nullish(),
-          timestamp: z.string().nullish(),
-          unread_count: z.number().default(0),
-        })
-        .passthrough(),
-    ),
-    cursor: z.string().nullish(),
-  })
-  .passthrough();
-const unipileStoredMessageListSchema = z
-  .object({
-    items: z.array(
-      z
-        .object({
-          id: z.string(),
-          text: z.string().nullish(),
-          timestamp: z.coerce.date(),
-          is_sender: z.union([z.boolean(), z.number()]),
-          attachments: z.array(z.unknown()).default([]),
-        })
-        .passthrough(),
-    ),
-    cursor: z.string().nullish(),
-  })
-  .passthrough();
-
 export const InboxContract = {
   channelSchema,
   connectionStatusSchema: z.enum([
@@ -221,16 +173,4 @@ export const InboxContract = {
   ]),
   hostedAuthStateSchema,
   hostedAuthCallbackSchema,
-  unipile: {
-    hostedLinkSchema: unipileHostedLinkSchema,
-    sendResponseSchema: unipileSendResponseSchema,
-    accountSchema: unipileAccountSchema,
-    userProfileSchema: unipileUserProfileSchema,
-    attendeeSchema: unipileAttendeeSchema,
-    messageEventSchema: unipileMessageEventSchema,
-    accountStatusSchema: unipileAccountStatusSchema,
-    webhookListSchema: unipileWebhookListSchema,
-    chatListSchema: unipileChatListSchema,
-    storedMessageListSchema: unipileStoredMessageListSchema,
-  },
 } as const;

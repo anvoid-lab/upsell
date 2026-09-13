@@ -5,7 +5,7 @@ import type {
   InboxChannel,
   InboxProvider,
   ProviderChat,
-  ProviderStoredMessage,
+  NormalizedInboxMessage,
 } from "@core/contracts/inbox.contract";
 
 export class InboxSyncService {
@@ -67,7 +67,7 @@ export class InboxSyncService {
     businessId: string,
     inboxChannel: InboxChannel,
     chat: ProviderChat,
-    messages: ProviderStoredMessage[],
+    messages: NormalizedInboxMessage[],
   ) {
     if (!messages.length && !chat.occurredAt) return;
     const supabase = createSupabaseServiceClient();
@@ -105,7 +105,7 @@ export class InboxSyncService {
         first_contact: (first?.occurredAt ?? occurredAt).toISOString(),
         status: "new",
       },
-      last_message: last?.text ?? `${channelLabel(inboxChannel)} conversation`,
+      last_message: last ? messageSummary(last) : `${channelLabel(inboxChannel)} conversation`,
       last_message_at: occurredAt.toISOString(),
       unread: chat.unread,
     };
@@ -147,12 +147,33 @@ export class InboxSyncService {
       conversation_id: conversation.id,
       channel_message_id: message.externalMessageId,
       content: message.text,
+      attachment: message.attachments,
       direction: message.direction,
       timestamp: message.occurredAt.toISOString(),
-      read: message.direction === "out",
-      delivery_status: message.direction === "out" ? "sent" : null,
+      read: message.seen,
+      delivery_status: message.direction === "out"
+        ? message.seen ? "read" : message.delivered ? "delivered" : "sent"
+        : null,
       delivery_updated_at:
         message.direction === "out" ? message.occurredAt.toISOString() : null,
+      delivered_at: message.delivered ? message.occurredAt.toISOString() : null,
+      read_at: message.seen ? message.occurredAt.toISOString() : null,
+      edited_at: message.edited ? message.occurredAt.toISOString() : null,
+      provider_deleted_at: message.deleted ? message.occurredAt.toISOString() : null,
+      hidden: message.hidden,
+      reactions: message.reactions.map((reaction) => ({
+        value: reaction.value,
+        sender_id: reaction.senderId,
+        direction: reaction.direction,
+        occurred_at: reaction.occurredAt?.toISOString() ?? null,
+      })),
+      quoted_message: message.quotedMessage ? {
+        external_message_id: message.quotedMessage.externalMessageId,
+        text: message.quotedMessage.text,
+        attachments: message.quotedMessage.attachments,
+        direction: message.quotedMessage.direction,
+      } : null,
+      provider_metadata: message.metadata,
     }));
     const inserted = await supabase.from("messages").insert(rows);
     if (inserted.error?.code !== "23505" && inserted.error)
@@ -160,8 +181,43 @@ export class InboxSyncService {
     if (inserted.error?.code === "23505") {
       for (const row of rows) {
         const retry = await supabase.from("messages").insert(row);
-        if (retry.error?.code !== "23505" && retry.error) throw retry.error;
+        if (retry.error?.code === "23505") {
+          const refreshed = await supabase
+            .from("messages")
+            .update(row)
+            .eq("business_id", businessId)
+            .eq("channel_id", channelId)
+            .eq("channel_message_id", row.channel_message_id);
+          if (refreshed.error) throw refreshed.error;
+        } else if (retry.error) {
+          throw retry.error;
+        }
       }
+    }
+
+    // Resolve the relational link after all messages have been inserted. The
+    // snapshot above remains the fallback when the quoted message is outside
+    // the synchronized history window.
+    for (const message of messages) {
+      const quotedId = message.quotedMessage?.externalMessageId;
+      if (!quotedId) continue;
+      const target = await supabase
+        .from("messages")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("conversation_id", conversation.id)
+        .eq("channel_message_id", quotedId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (target.error) throw target.error;
+      if (!target.data) continue;
+      const linked = await supabase
+        .from("messages")
+        .update({ reply_to_message_id: target.data.id })
+        .eq("business_id", businessId)
+        .eq("conversation_id", conversation.id)
+        .eq("channel_message_id", message.externalMessageId);
+      if (linked.error) throw linked.error;
     }
   }
 }
@@ -175,4 +231,11 @@ export const inboxSyncService = new InboxSyncService();
 
 function channelLabel(channel: InboxChannel) {
   return channel === "whatsapp" ? "WhatsApp" : "Instagram";
+}
+
+function messageSummary(message: NormalizedInboxMessage) {
+  if (message.text.trim()) return message.text;
+  if (message.attachments.length === 1) return "Media";
+  if (message.attachments.length > 1) return `${message.attachments.length} attachments`;
+  return "Message";
 }

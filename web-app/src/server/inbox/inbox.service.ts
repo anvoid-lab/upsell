@@ -423,11 +423,133 @@ export class InboxService implements InboxProvider {
       return "accepted" as const;
     }
 
+    if (event.type === "message_mutation") {
+      return this.persistMessageMutation(
+        channel.id as string,
+        channel.business_id as string,
+        event,
+      );
+    }
+
+    let normalizedEvent = event;
+    try {
+      const canonical = await this.provider.getMessage(event.externalMessageId);
+      normalizedEvent = {
+        ...event,
+        occurredAt: canonical.occurredAt,
+        text: canonical.text,
+        attachments: canonical.attachments,
+        direction: canonical.direction,
+        quotedMessage: canonical.quotedMessage,
+        delivered: canonical.delivered,
+        seen: canonical.seen,
+        hidden: canonical.hidden,
+        deleted: canonical.deleted,
+        edited: canonical.edited,
+        reactions: canonical.reactions,
+        metadata: canonical.metadata,
+      };
+    } catch {
+      // The webhook remains usable if provider enrichment is temporarily unavailable.
+    }
+
     return this.persistMessage(
       channel.id as string,
       channel.business_id as string,
-      event,
+      normalizedEvent,
     );
+  }
+
+  private async persistMessageMutation(
+    channelId: string,
+    businessId: string,
+    event: Extract<ProviderEvent, { type: "message_mutation" }>,
+  ) {
+    const supabase = createSupabaseServiceClient();
+    const current = await supabase
+      .from("messages")
+      .select("id, conversation_id, direction, timestamp, delivery_status")
+      .eq("business_id", businessId)
+      .eq("channel_id", channelId)
+      .eq("channel_message_id", event.externalMessageId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (current.error) throw current.error;
+    if (!current.data) return "ignored" as const;
+
+    if (event.mutation === "read" || event.mutation === "delivered") {
+      if (current.data.direction !== "out") return "ignored" as const;
+      const status = event.mutation === "read" ? "read" : "delivered";
+      const values = event.mutation === "read"
+        ? {
+            read: true,
+            read_at: event.occurredAt.toISOString(),
+            delivery_status: status,
+            delivery_updated_at: event.occurredAt.toISOString(),
+          }
+        : {
+            delivered_at: event.occurredAt.toISOString(),
+            delivery_status: status,
+            delivery_updated_at: event.occurredAt.toISOString(),
+          };
+      const updated = await supabase
+        .from("messages")
+        .update(values)
+        .eq("business_id", businessId)
+        .eq("conversation_id", current.data.conversation_id)
+        .eq("direction", "out")
+        .lte("timestamp", current.data.timestamp)
+        .in(
+          "delivery_status",
+          event.mutation === "read"
+            ? ["pending", "sending", "sent", "delivered", "read"]
+            : ["pending", "sending", "sent", "delivered"],
+        );
+      if (updated.error) throw updated.error;
+      return "accepted" as const;
+    }
+
+    if (event.mutation === "deleted") {
+      const deleted = await supabase
+        .from("messages")
+        .update({
+          content: "",
+          attachment: [],
+          provider_deleted_at: event.occurredAt.toISOString(),
+        })
+        .eq("id", current.data.id)
+        .eq("business_id", businessId);
+      if (deleted.error) throw deleted.error;
+      return "accepted" as const;
+    }
+
+    let canonical;
+    try {
+      canonical = await this.provider.getMessage(event.externalMessageId);
+    } catch {
+      return "accepted" as const;
+    }
+    const update = await supabase
+      .from("messages")
+      .update({
+        content: canonical.deleted ? "" : canonical.text,
+        attachment: canonical.deleted ? [] : canonical.attachments,
+        quoted_message: quotedMessageValue(canonical.quotedMessage),
+        edited_at: canonical.edited ? event.occurredAt.toISOString() : null,
+        provider_deleted_at: canonical.deleted ? event.occurredAt.toISOString() : null,
+        hidden: canonical.hidden,
+        reactions: canonical.reactions.map((reaction) => ({
+          value: reaction.value,
+          sender_id: reaction.senderId,
+          direction: reaction.direction,
+          occurred_at: reaction.occurredAt?.toISOString() ?? null,
+        })),
+        provider_metadata: canonical.metadata,
+      })
+      .eq("id", current.data.id)
+      .eq("business_id", businessId);
+    if (update.error) throw update.error;
+    return "accepted" as const;
   }
 
   private async resolveProviderIdentity(
@@ -487,7 +609,7 @@ export class InboxService implements InboxProvider {
             first_contact: event.occurredAt.toISOString(),
             status: "new",
           },
-          last_message: event.text,
+          last_message: messageSummary(event),
           last_message_at: event.occurredAt.toISOString(),
           status: "open",
           unread: true,
@@ -516,6 +638,14 @@ export class InboxService implements InboxProvider {
 
     if (!conversation) throw new Error("Conversation could not be resolved.");
 
+    const replyToMessageId = event.quotedMessage?.externalMessageId
+      ? await this.resolveReplyTarget(
+          businessId,
+          conversation.id as string,
+          event.quotedMessage.externalMessageId,
+        )
+      : null;
+
     if (event.direction === "out") {
       const reconciliationWindow = new Date(
         event.occurredAt.getTime() - 5 * 60_000,
@@ -528,7 +658,7 @@ export class InboxService implements InboxProvider {
         .eq("direction", "out")
         .eq("content", event.text)
         .is("channel_message_id", null)
-        .in("delivery_status", ["pending", "sending"])
+        .in("delivery_status", ["pending", "sending", "sent"])
         .gte("timestamp", reconciliationWindow)
         .order("timestamp", { ascending: false })
         .limit(1)
@@ -539,10 +669,20 @@ export class InboxService implements InboxProvider {
           .from("messages")
           .update({
             channel_message_id: event.externalMessageId,
-            delivery_status: "sent",
+            delivery_status: event.seen
+              ? "read"
+              : event.delivered ? "delivered" : "sent",
             delivery_error: null,
             delivery_updated_at: event.occurredAt.toISOString(),
-            read: true,
+            read: event.seen ?? false,
+            attachment: event.attachments,
+            reply_to_message_id: replyToMessageId,
+            quoted_message: quotedMessageValue(event.quotedMessage),
+            delivered_at: event.delivered ? event.occurredAt.toISOString() : null,
+            read_at: event.seen ? event.occurredAt.toISOString() : null,
+            hidden: event.hidden ?? false,
+            reactions: reactionValues(event.reactions),
+            provider_metadata: event.metadata ?? {},
           })
           .eq("id", pending.data.id)
           .eq("business_id", businessId);
@@ -552,7 +692,7 @@ export class InboxService implements InboxProvider {
         const conversationUpdate = await supabase
           .from("conversations")
           .update({
-            last_message: event.text,
+            last_message: messageSummary(event),
             last_message_at: event.occurredAt.toISOString(),
           })
           .eq("id", conversation.id)
@@ -568,12 +708,24 @@ export class InboxService implements InboxProvider {
       conversation_id: conversation.id,
       channel_message_id: event.externalMessageId,
       content: event.text,
+      attachment: event.attachments,
       direction: event.direction,
       timestamp: event.occurredAt.toISOString(),
-      read: event.direction === "out",
-      delivery_status: event.direction === "out" ? "sent" : null,
+      read: event.seen ?? false,
+      delivery_status: event.direction === "out"
+        ? event.seen ? "read" : event.delivered ? "delivered" : "sent"
+        : null,
       delivery_updated_at:
         event.direction === "out" ? event.occurredAt.toISOString() : null,
+      reply_to_message_id: replyToMessageId,
+      quoted_message: quotedMessageValue(event.quotedMessage),
+      delivered_at: event.delivered ? event.occurredAt.toISOString() : null,
+      read_at: event.seen ? event.occurredAt.toISOString() : null,
+      edited_at: event.edited ? event.occurredAt.toISOString() : null,
+      provider_deleted_at: event.deleted ? event.occurredAt.toISOString() : null,
+      hidden: event.hidden ?? false,
+      reactions: reactionValues(event.reactions),
+      provider_metadata: event.metadata ?? {},
     });
     if (insertError?.code === "23505") return "duplicate" as const;
     if (insertError) throw insertError;
@@ -581,9 +733,11 @@ export class InboxService implements InboxProvider {
     const { error: updateError } = await supabase
       .from("conversations")
       .update({
-        last_message: event.text,
-        last_message_at: event.occurredAt.toISOString(),
-        ...(event.direction === "in" ? { unread: true } : {}),
+        ...(event.hidden ? {} : {
+          last_message: messageSummary(event),
+          last_message_at: event.occurredAt.toISOString(),
+        }),
+        ...(event.direction === "in" && !event.hidden ? { unread: true } : {}),
         ...(event.direction === "in" && avatarUrl
           ? {
               contact: {
@@ -599,6 +753,24 @@ export class InboxService implements InboxProvider {
       .eq("business_id", businessId);
     if (updateError) throw updateError;
     return "accepted" as const;
+  }
+
+  private async resolveReplyTarget(
+    businessId: string,
+    conversationId: string,
+    externalMessageId: string,
+  ): Promise<string | null> {
+    const supabase = createSupabaseServiceClient();
+    const result = await supabase
+      .from("messages")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("conversation_id", conversationId)
+      .eq("channel_message_id", externalMessageId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    return result.data ? String(result.data.id) : null;
   }
   private async resolveSenderAvatar(
     event: ProviderMessageEvent,
@@ -622,6 +794,9 @@ export class InboxService implements InboxProvider {
   }
   listMessages(chatId: string) {
     return this.provider.listMessages(chatId);
+  }
+  getMessage(messageId: string) {
+    return this.provider.getMessage(messageId);
   }
   getAttendeeAvatar(accountId: string, attendeeId: string) {
     return this.provider.getAttendeeAvatar(accountId, attendeeId);
@@ -650,6 +825,32 @@ export class InboxService implements InboxProvider {
   parseWebhook(payload: unknown) {
     return this.provider.parseWebhook(payload);
   }
+}
+
+function messageSummary(event: ProviderMessageEvent): string {
+  if (event.text.trim()) return event.text;
+  if (event.attachments.length === 1) return "Media";
+  if (event.attachments.length > 1) return `${event.attachments.length} attachments`;
+  return "Message";
+}
+
+function quotedMessageValue(quoted: ProviderMessageEvent["quotedMessage"]) {
+  if (!quoted) return null;
+  return {
+    external_message_id: quoted.externalMessageId,
+    text: quoted.text,
+    attachments: quoted.attachments,
+    direction: quoted.direction,
+  };
+}
+
+function reactionValues(reactions: ProviderMessageEvent["reactions"] = []) {
+  return reactions.map((reaction) => ({
+    value: reaction.value,
+    sender_id: reaction.senderId,
+    direction: reaction.direction,
+    occurred_at: reaction.occurredAt?.toISOString() ?? null,
+  }));
 }
 
 function initials(name: string) {
