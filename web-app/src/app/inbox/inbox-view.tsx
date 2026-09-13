@@ -15,14 +15,13 @@ import type {
   ConversationStatus,
   ChannelConnection,
 } from '@/types';
-import { InboxConversationList } from './inbox-conversation-list';
-import { InboxChatPanel } from './inbox-chat-panel';
+import { InboxConversationList } from './conversaction/conversation-list';
 import { InboxDetailsPanel } from './inbox-details-panel';
-import { useChatPanel } from './inbox-chat-panel.hook';
+import { useChatPanel } from './chat/chat.hook';
 import { useRealtimeInbox } from './use-realtime-inbox.hook';
 import { IntegrationView } from '@/app/inbox/integration/integration-view';
-import { InboxOnboarding } from './inbox-onboarding';
-import { updateConversationStatusAction } from './actions';
+import { InboxOnboarding } from './onboarding/inbox-onboarding';
+import { updateConversationStatusAction } from './inbox.service';
 import { integrationStatusAction } from './integration/actions';
 import {
   connectionNeedsAttention,
@@ -31,6 +30,11 @@ import {
   type InboxEmptyState as InboxEmptyStateName,
 } from './inbox-state';
 import { Button } from '@/components/ui/button';
+import { InboxChatPanel } from './chat/chat-view';
+import {
+  StateDisplay,
+  type StateDisplayStatus,
+} from '@/components/shared/state-display';
 
 interface InboxViewProps {
   initialConversations: Conversation[];
@@ -217,7 +221,7 @@ export function InboxView({
   }
 
   return (
-    <div className="flex justify-between w-full">
+    <div className="flex w-full min-w-0 overflow-hidden">
       {integrating && (
         <IntegrationView
           channel={integrating.platform as 'whatsapp' | 'instagram'}
@@ -240,7 +244,7 @@ export function InboxView({
         conversations={conversations}
       />
       {emptyState === 'inbox' ? (
-        <div className="flex flex-1">
+        <div className="flex min-w-0 flex-1">
           <div className="flex">
             {showConnectionWarning && (
               <ConnectionWarning
@@ -255,7 +259,7 @@ export function InboxView({
               />
             )}
           </div>
-          <div className="flex flex-grow w-full">
+          <div className="flex min-w-0 flex-1">
             <InboxChatPanel
               selectedId={selectedId}
               chatPanel={chatPanel}
@@ -264,7 +268,7 @@ export function InboxView({
             />
           </div>
 
-          <div className="flex w-[45%]">
+          <div className="flex min-w-0 w-[30%] flex-none">
             <InboxDetailsPanel
               conversation={chatPanel.conversation}
               notes={chatPanel.notes}
@@ -333,43 +337,34 @@ function InboxEmptyState({
         'We could not check your conversations or Instagram connection.',
     },
   }[state];
-  const Icon = content.Icon;
+  const status: StateDisplayStatus =
+    state === 'error' ? 'error' : state === 'connecting' ? 'loading' : 'empty';
+  const action =
+    state === 'connect' ? (
+      <Button className="rounded-full" onClick={onConnect}>
+        Connect Instagram
+      </Button>
+    ) : state === 'reconnect' ? (
+      <Button className="rounded-full" onClick={onConnect}>
+        Reconnect Instagram
+      </Button>
+    ) : state === 'error' ? (
+      <Button className="gap-2 rounded-full" onClick={onRetry}>
+        <IconRefresh className="h-4 w-4" /> Try again
+      </Button>
+    ) : undefined;
 
   return (
-    <main className="flex flex-1 items-center justify-center bg-neutral-50/40 px-6">
-      <div className="max-w-sm text-center" aria-live="polite">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-neutral-200">
-          <Icon
-            className={
-              state === 'connecting'
-                ? 'animate-spin text-primary-600'
-                : 'text-primary-600'
-            }
-          />
-        </div>
-        <h1 className="text-base font-semibold text-neutral-900">
-          {content.title}
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed text-neutral-500">
-          {content.description}
-        </p>
-        {state === 'connect' && (
-          <Button className="mt-5 rounded-full" onClick={onConnect}>
-            Connect Instagram
-          </Button>
-        )}
-        {state === 'reconnect' && (
-          <Button className="mt-5 rounded-full" onClick={onConnect}>
-            Reconnect Instagram
-          </Button>
-        )}
-        {state === 'error' && (
-          <Button className="mt-5 rounded-full gap-2" onClick={onRetry}>
-            <IconRefresh className="h-4 w-4" /> Try again
-          </Button>
-        )}
-      </div>
-    </main>
+    <StateDisplay
+      icon={content.Icon}
+      title={content.title}
+      description={content.description}
+      action={action}
+      status={status}
+      size="lg"
+      className="bg-neutral-50/40"
+      iconClassName={state === 'connecting' ? 'animate-spin' : undefined}
+    />
   );
 }
 

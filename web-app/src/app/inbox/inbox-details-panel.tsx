@@ -1,7 +1,7 @@
 'use client';
 
 import { FC, useEffect, useState } from 'react';
-import { IconAlertTriangle, IconCalendarPlus } from '@icons';
+import { IconAlertTriangle, IconCalendarPlus, IconSparkles } from '@icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { formatDate, formatRelative } from '@/lib/format';
 import { SectionLabel } from '@/components/shared/section-label';
+import { StateDisplay } from '@/components/shared/state-display';
 import type { Conversation, ConversationNote, FollowUp } from '@/types';
 
 interface InboxDetailsPanelProps {
@@ -69,12 +70,13 @@ export const InboxDetailsPanel: FC<InboxDetailsPanelProps> = ({
 
   if (!conversation) {
     return (
-      <aside className="w-full flex-shrink-0 border-l border-neutral-200 bg-neutral-50 flex items-center justify-center">
-        <p className="text-[13px] text-neutral-400 text-center px-4">
-          Select a conversation
-          <br />
-          to see details
-        </p>
+      <aside className="flex w-full flex-shrink-0 border-l border-neutral-200 bg-neutral-50">
+        <StateDisplay
+          icon={IconSparkles}
+          title="Select a conversation"
+          description="Choose a conversation to see its details."
+          size="sm"
+        />
       </aside>
     );
   }

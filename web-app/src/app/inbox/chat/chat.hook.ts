@@ -8,33 +8,9 @@ import {
   markAsReadAction,
   retryMessageAction,
   sendMessageAction,
-} from "./actions";
+} from "../inbox.service";
+import { UseChatPanelReturn, SelectedAttachment } from "./chat.types";
 
-export interface UseChatPanelReturn {
-  conversation: Conversation | null;
-  messages: Message[];
-  replyText: string;
-  isLoading: boolean;
-  isSending: boolean;
-  retryingMessageIds: Set<string>;
-  notes: ConversationNote[];
-  isAddingNote: boolean;
-  selectedAttachments: SelectedAttachment[];
-  setReplyText: (text: string) => void;
-  addAttachments: (files: FileList | File[]) => void;
-  removeAttachment: (id: string) => void;
-  handleSendReply: () => Promise<void>;
-  handleRetryMessage: (messageId: string) => Promise<void>;
-  handleAddNote: (content: string) => Promise<boolean>;
-  applyRealtimeMessage: (message: Message) => void;
-}
-
-export type SelectedAttachment = {
-  id: string;
-  file: File;
-  previewUrl: string;
-  type: MessageAttachmentType;
-};
 
 function fileType(file: File): MessageAttachmentType {
   if (file.type.startsWith("image/")) return "image";
@@ -93,7 +69,7 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
       })
       .catch(() => { /* Leave the empty panel available if loading fails. */ })
       .finally(() => { if (!cancelled) setIsLoading(false); });
-    markAsReadAction(selectedId).catch(() => {});
+    markAsReadAction(selectedId).catch(() => { });
     return () => { cancelled = true; };
   }, [selectedId]);
 
@@ -120,12 +96,12 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
         previous.attachment.length === message.attachment.length;
       next[index] = shouldKeepLocalUrls
         ? {
-            ...message,
-            attachment: message.attachment.map((item, attachmentIndex) => ({
-              ...item,
-              media_url: previous.attachment[attachmentIndex]?.media_url ?? null,
-            })),
-          }
+          ...message,
+          attachment: message.attachment.map((item, attachmentIndex) => ({
+            ...item,
+            media_url: previous.attachment[attachmentIndex]?.media_url ?? null,
+          })),
+        }
         : message;
       if (message.channel_message_id && !shouldKeepLocalUrls) {
         for (const attachment of previous.attachment) {
@@ -236,11 +212,11 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
         : undefined;
       const retried = message.client_message_id && retryFiles
         ? await sendMessageAction(createMessageFormData(
-            message.conversation_id,
-            message.content,
-            message.client_message_id,
-            retryFiles,
-          ))
+          message.conversation_id,
+          message.content,
+          message.client_message_id,
+          retryFiles,
+        ))
         : await retryMessageAction(message.id);
       upsertMessage(retried);
     } catch {
@@ -292,10 +268,12 @@ export function useChatPanel(selectedId: string | null): UseChatPanelReturn {
     }
   }, [selectedId]);
 
-  return { conversation, messages, notes, replyText, isLoading, isSending, isAddingNote,
+  return {
+    conversation, messages, notes, replyText, isLoading, isSending, isAddingNote,
     retryingMessageIds, selectedAttachments, setReplyText, addAttachments, removeAttachment,
     handleSendReply, handleRetryMessage,
-    handleAddNote, applyRealtimeMessage };
+    handleAddNote, applyRealtimeMessage
+  };
 }
 
 function createMessageFormData(

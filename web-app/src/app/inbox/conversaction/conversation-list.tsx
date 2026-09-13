@@ -9,8 +9,10 @@ import {
   IconCheck,
   IconChevronDown,
   IconClock,
+  IconLoader2,
+  IconMessageCircle,
   IconSearch,
-  IconUsers,
+  IconUserPlus,
   IconX,
 } from '@icons';
 import { cn } from '@/lib/utils';
@@ -26,14 +28,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
-import { Skeleton } from '@/components/ui/skeleton';
 import type { Conversation, ConversationStatus } from '@/types';
 import { PlatformBadge } from '@/components/shared/platform-badge';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { SectionLabel } from '@/components/shared/section-label';
+import { StateDisplay } from '@/components/shared/state-display';
 import { STATUS_DOT } from '@/styles/design-tokens';
-import { useConversationList } from './inbox-conversation-list.hook';
-import type { ConversationListFilter } from './inbox-conversation-list.hook';
+import { useConversationList } from './conversation-list.hook';
+import type { ConversationListFilter } from './conversation-list.hook';
 
 interface InboxConversationListProps {
   onConnect?: () => void;
@@ -119,6 +121,44 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
     setSearchOpen(false);
   };
 
+  const filterView = (
+    <div className="h-[58px] px-4 flex items-center justify-between gap-3 flex-shrink-0">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            className="h-9 px-2 text-sm font-medium gap-1.5"
+          >
+            {filterLabels[activeTab]}, Newest
+            <IconChevronDown className="w-4 h-4 text-neutral-500" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[150px]">
+          {(Object.keys(filterLabels) as ConversationListFilter[]).map(
+            (filter) => (
+              <DropdownMenuItem
+                key={filter}
+                onClick={() => setActiveTab(filter)}
+                className="flex justify-between"
+              >
+                {filterLabels[filter]}
+                {activeTab === filter && <IconCheck className="w-4 h-4" />}
+              </DropdownMenuItem>
+            ),
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <label className="flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
+        <Switch
+          checked={unrepliedOnly}
+          onCheckedChange={setUnrepliedOnly}
+          aria-label="Show unreplied conversations only"
+        />
+        Unreplied
+      </label>
+    </div>
+  );
+
   return (
     <>
       <div className="w-[25%] flex-shrink-0 border-r border-neutral-200 flex flex-col bg-white">
@@ -147,60 +187,19 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
                 title="Manage channel connection"
                 onClick={onConnect}
               >
-                <IconUsers className="w-5 h-5 text-neutral-700" />
+                <IconUserPlus className="w-5 h-5 text-neutral-700" />
               </Button>
             )}
           </div>
         </div>
+
         {/* Filters */}
-        <div className="h-[58px] px-4 flex items-center justify-between gap-3 flex-shrink-0">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-9 px-2 text-sm font-medium gap-1.5"
-              >
-                {filterLabels[activeTab]}, Newest
-                <IconChevronDown className="w-4 h-4 text-neutral-500" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[150px]">
-              {(Object.keys(filterLabels) as ConversationListFilter[]).map(
-                (filter) => (
-                  <DropdownMenuItem
-                    key={filter}
-                    onClick={() => setActiveTab(filter)}
-                    className="flex justify-between"
-                  >
-                    {filterLabels[filter]}
-                    {activeTab === filter && <IconCheck className="w-4 h-4" />}
-                  </DropdownMenuItem>
-                ),
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <label className="flex items-center gap-2 text-sm text-neutral-600 cursor-pointer">
-            <Switch
-              checked={unrepliedOnly}
-              onCheckedChange={setUnrepliedOnly}
-              aria-label="Show unreplied conversations only"
-            />
-            Unreplied
-          </label>
-        </div>
+        {filterView}
+
         {/* List */}
         <div className="">
           {isLoading
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex gap-3 px-5 py-3">
-                  <Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-3.5 w-24" />
-                    <Skeleton className="h-3 w-4/5" />
-                    <Skeleton className="h-5 w-14" />
-                  </div>
-                </div>
-              ))
+            ? <StateDisplay icon={IconLoader2} title="Loading conversations" status="loading" size="sm" iconClassName="animate-spin" />
             : visibleConversations.map((conv) => (
                 <ConversationRow
                   key={conv.id}
@@ -209,11 +208,10 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
                   onClick={() => onSelect(conv.id)}
                 />
               ))}
-          {!isLoading && visibleConversations.length === 0 && (
-            <div className="p-6 text-center text-[13px] text-neutral-400">
-              No conversations found
-            </div>
-          )}
+
+          {!isLoading &&
+            visibleConversations.length === 0 &&
+            <StateDisplay icon={IconMessageCircle} title="No conversations found" description="Try changing the current filters." size="sm" />}
         </div>
       </div>
 
@@ -247,9 +245,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
                   <SectionLabel>Recent</SectionLabel>
                 </div>
                 {recentConversations.length === 0 && (
-                  <p className="px-4 py-4 text-xs text-neutral-400 text-center">
-                    No recent views yet
-                  </p>
+                  <StateDisplay icon={IconClock} title="No recent views yet" size="sm" />
                 )}
                 {recentConversations.map((conv) => (
                   <SearchResultRow
@@ -264,9 +260,7 @@ export const InboxConversationList: FC<InboxConversationListProps> = ({
             {searchQuery.trim() && (
               <>
                 {searchResults.length === 0 && (
-                  <p className="px-4 py-6 text-xs text-neutral-400 text-center">
-                    No results for &ldquo;{searchQuery}&rdquo;
-                  </p>
+                  <StateDisplay icon={IconSearch} title={<>No results for &ldquo;{searchQuery}&rdquo;</>} description="Try another name or message." size="sm" />
                 )}
                 {searchResults.map((conv) => (
                   <SearchResultRow
@@ -317,8 +311,8 @@ const ConversationRow: FC<{
       <button
         onClick={onClick}
         className={cn(
-          'mb-2 flex items-start gap-3 rounded-xl w-full px-3 py-3 text-left transition-colors',
-          isActive ? 'bg-primary-50' : 'hover:bg-neutral-50',
+          'mb-2 flex items-start gap-3 rounded-xl w-full px-3 py-3 text-left transition-colors bg-neutral-50',
+          isActive ? 'bg-primary-50' : 'hover:bg-neutral-100',
         )}
       >
         <UserAvatar
