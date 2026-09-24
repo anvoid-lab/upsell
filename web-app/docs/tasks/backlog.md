@@ -11,6 +11,14 @@ IA não faz parte do âmbito atual: geração de respostas, análise por modelos
 embeddings, agentes e sugestões automáticas foram removidos do web-app. Os componentes
 visuais associados estão preservados, ocultos e sem ligação funcional.
 
+**Decisão de produto (2026-09-13):** follow-ups não serão desenvolvidos como um módulo
+operacional autónomo. Serão uma capacidade do futuro Sales Copilot: à medida que recebe
+o contexto da conversa, o Copilot poderá preparar a mensagem e o momento do follow-up.
+Numa primeira fase, o vendedor aprova, edita ou rejeita a sugestão; posteriormente poderá
+ativar um modo automático sujeito a regras e limites. Até esse desenho estar fechado, a
+implementação do executor de follow-ups fica em espera e a infraestrutura existente é
+preservada.
+
 A especificação comercial original ainda descreve IA; deve ser revista quando fecharmos
 o posicionamento sem IA. O [backlog anterior](backlog-20260816-archive.md) fica como
 histórico, não como lista de funcionalidades disponíveis ou trabalho a executar.
@@ -25,7 +33,9 @@ histórico, não como lista de funcionalidades disponíveis ou trabalho a execut
   Recebe um formato normalizado próprio; não adapta ainda os eventos reais da Meta.
 - Respostas manuais gravadas na base de dados. Ainda não são entregues a um canal externo.
 - Serviço de agendamento manual existente, mas o diálogo do painel de detalhes ainda
-  cria apenas um item local. Não existe executor de follow-ups.
+  cria apenas um item local. Não existe executor de follow-ups. Este percurso não será
+  completado isoladamente antes da definição do Sales Copilot; a ação local enganadora
+  deverá permanecer oculta ou ser apresentada como indisponível até existir o fluxo real.
 - Analytics parcialmente ligados a dados reais; séries históricas, variações e alguns
   painéis continuam simulados.
 - Última validação: build e TypeScript passaram; 41 testes unitários e 4 de integração passaram.
@@ -99,31 +109,56 @@ sem depender do seed. Distinguir ausência de conversas, canal desligado e erro 
 
 ## P2 — Operação e recuperação de oportunidades
 
-### T-009 · Agendamento manual e execução de follow-ups — parcial
+### T-009 · Execução de follow-ups aprovados pelo Sales Copilot — parcial, em espera
 
-Ligar o diálogo ao serviço existente, validar data/atraso no servidor e permitir editar e
-cancelar. Implementar execução de itens vencidos, controlo de concorrência, tentativas,
-registo de erro e estados coerentes com a confirmação do fornecedor.
+Reformular o serviço existente para receber uma ação preparada pelo Sales Copilot e
+aprovada pelo vendedor, em vez de construir um módulo manual autónomo. O vendedor poderá
+aprovar, editar ou rejeitar a mensagem e o momento sugeridos. O modo automático será uma
+fase posterior, configurável e sujeito a regras explícitas.
+
+Quando retomado, implementar validação no servidor, edição e cancelamento, execução de
+itens vencidos, controlo de concorrência, tentativas, registo de erro e estados coerentes
+com a confirmação do fornecedor.
 
 **Concluído quando:** o agendamento sobrevive a um refresh, é enviado uma única vez pelo
-canal real e pode ser cancelado antes do envio. Depende de T-010c/d e T-014.
+canal real e pode ser cancelado antes do envio ou automaticamente quando o contexto muda.
+Depende de T-010c/d, T-014 e T-035.
 
-### T-014 · Infraestrutura de tarefas de follow-up — pendente
+### T-014 · Infraestrutura de tarefas de follow-up — pendente, em espera
 
 A antiga fila de sugestões de IA foi removida. Criar infraestrutura própria para
 follow-ups, com execução periódica, reserva de trabalho concorrente, recuperação após
-interrupção e visibilidade de falhas. Reutilizar extensões partilhadas apenas quando adequado.
+interrupção e visibilidade de falhas. Esta infraestrutura será o motor de execução do
+Sales Copilot, separado da decisão de sugerir um follow-up. Não iniciar antes de fechar
+T-035 e o envio real do primeiro canal.
 
-### T-008 · Deteção de conversas sem resposta — pendente, reformulado sem IA
+### T-008 · Deteção de conversas sem resposta — pendente, incorporado no Sales Copilot
 
-Usar regras explícitas: última mensagem do vendedor, tempo decorrido, conversa elegível e
-estado comercial selecionado pelo vendedor. Não inferir intenção de compra com modelos.
+O Sales Copilot acompanha o contexto da conversa e prepara uma sugestão com mensagem,
+momento e justificação. Regras explícitas continuam a validar a última mensagem do vendedor,
+tempo decorrido, elegibilidade, estado comercial, consentimento e restrições do canal.
 
-Definir com o produto se o resultado é um lembrete ou um envio previamente autorizado.
-Cancelar o follow-up quando o cliente responder ou quando a oportunidade deixar de ser elegível.
+Na primeira fase, o resultado requer confirmação do vendedor. O modo automático será
+opcional e deverá cancelar o follow-up quando o cliente responder, comprar ou quando a
+oportunidade deixar de ser elegível.
 
 **Concluído quando:** as regras podem ser configuradas e verificadas, respeitam o canal e
 não enviam mensagens após resposta, cancelamento ou exclusão do cliente.
+
+### T-035 · Definir arquitetura e experiência do Sales Copilot — pendente
+
+Definir o contrato de ação produzido pelo Copilot: mensagem proposta, data/hora sugerida,
+justificação, confiança, modo de aprovação ou automático e condições de cancelamento.
+Desenhar na conversa as ações de aprovar, editar, rejeitar e configurar automação.
+
+Separar claramente a decisão do Copilot da execução determinística: o Copilot propõe; as
+regras verificam autorização, horário, elegibilidade e limites; o motor de T-014 agenda,
+envia e acompanha a entrega. Preservar a infraestrutura de follow-ups já existente sem
+reativar os componentes de IA antes de esta arquitetura estar definida.
+
+**Concluído quando:** existe um contrato funcional acordado, fluxos de aprovação e modo
+automático definidos, regras de segurança/cancelamento documentadas e dependências do
+primeiro canal identificadas.
 
 ### T-031 · Respostas rápidas e anexos — pendente
 
@@ -205,7 +240,9 @@ Next instalado. Migrar para uma configuração compatível e resolver os erros e
 1. Discutir e fechar as decisões de integração de T-010.
 2. Ligar o primeiro canal de ponta a ponta: conectar → receber → responder → confirmar entrega.
 3. Completar persistência da inbox, erros e onboarding.
-4. Implementar follow-ups manuais e depois regras de ausência de resposta.
-5. Completar ferramentas de equipa, métricas reais e preparação para lançamento.
+4. Definir a arquitetura e experiência do Sales Copilot (T-035), começando pelo modo assistido.
+5. Implementar o motor de follow-ups como executor das ações aprovadas pelo Copilot.
+6. Só depois introduzir regras de modo automático, com limites e cancelamento seguro.
+7. Completar ferramentas de equipa, métricas reais e preparação para lançamento.
 
 Não reativar IA nem remover estruturas de outros projetos como parte destas tarefas.

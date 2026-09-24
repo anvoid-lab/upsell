@@ -21,7 +21,7 @@ import { useChatPanel } from './chat/chat.hook';
 import { useRealtimeInbox } from './use-realtime-inbox.hook';
 import { IntegrationView } from '@/app/inbox/integration/integration-view';
 import { InboxOnboarding } from './onboarding/inbox-onboarding';
-import { updateConversationStatusAction } from './inbox.service';
+import { updateConversationStatusAction } from './inbox.action';
 import { integrationStatusAction } from './integration/actions';
 import {
   connectionNeedsAttention,

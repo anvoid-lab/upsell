@@ -8,7 +8,7 @@ import {
   markAsReadAction,
   retryMessageAction,
   sendMessageAction,
-} from "../inbox.service";
+} from "@/app/inbox/inbox.action";
 import { UseChatPanelReturn, SelectedAttachment } from "./chat.types";
 
 

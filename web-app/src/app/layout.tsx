@@ -1,21 +1,21 @@
-import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
-import "@/app/globals.css";
-import { AppSidebar } from "@/app/sidebar";
-import { ConfirmToastProvider } from "@/components/shared/confirm-toast";
-import { inboxConversationListService } from "@server/inbox/inbox-conversation-list.service";
-import { currentUserService } from "@server/current-user.service";
+import type { Metadata } from 'next';
+import { Plus_Jakarta_Sans } from 'next/font/google';
+import '@/app/globals.css';
+import { AppSidebar } from '@/app/sidebar';
+import { ConfirmToastProvider } from '@/components/shared/confirm-toast';
+import { inboxConversationListService } from '@/server/inbox/inbox-conversation-list.service';
+import { currentUserService } from '@server/auth/current-user.service';
 
 export const metadata: Metadata = {
-  title: "VendAI",
-  description: "Unified customer inbox",
+  title: 'VendAI',
+  description: 'Unified customer inbox',
 };
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 const appFont = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  display: "swap",
+  subsets: ['latin'],
+  display: 'swap',
 });
 
 export default async function RootLayout({
@@ -32,11 +32,11 @@ export default async function RootLayout({
     const conversations = await inboxConversationListService
       .fetchConversations()
       .catch(() => []);
-    const unreadCount = conversations.filter((conversation) => conversation.unread).length;
+    const unreadCount = conversations.filter(
+      (conversation) => conversation.unread,
+    ).length;
     content = (
-      <div
-        className="flex h-screen bg-white overflow-hidden"
-      >
+      <div className="flex h-screen bg-white overflow-hidden">
         <AppSidebar
           unreadCount={unreadCount}
           email={user.email}

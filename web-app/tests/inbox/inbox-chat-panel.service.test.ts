@@ -31,7 +31,7 @@ vi.mock("@server/inbox/inbox.service", () => ({
 
 vi.mock("@core/repository", () => ({
   BaseRepository: class {
-    constructor(private options: { table: string }) {}
+    constructor(private options: { table: string }) { }
     async create(data: Record<string, unknown>) {
       writes(this.options.table, "create", data);
       return { id: "201", created_at: new Date(), ...data };

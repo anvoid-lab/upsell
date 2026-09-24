@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip';
+import { DropdownProfile } from '@/components/shared/dropdown-profile';
 
 interface NavItem {
   label: string;
@@ -141,18 +142,11 @@ export const AppSidebar: FC<AppSidebarProps> = ({
 
         {/* User row */}
         <div className=" border-zinc-100 p-1.5">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center justify-center gap-2 px-1 py-1 rounded-lg overflow-hidden">
-                <div className="w-7 h-7 rounded-full bg-gray-500 flex items-center justify-center text-xs font-semibold text-zinc-50 flex-shrink-0">
-                  {initials}
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="text-xs">
-              {email}
-            </TooltipContent>
-          </Tooltip>
+          <DropdownProfile
+            businessName={businessName}
+            email={email}
+            initials={initials}
+          />
         </div>
       </aside>
     </TooltipProvider>

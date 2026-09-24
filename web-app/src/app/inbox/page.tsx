@@ -1,6 +1,6 @@
-import { inboxConversationListService } from "@server/inbox/inbox-conversation-list.service";
-import { settingsChannelsService } from "@/app/settings/settings-channels.service";
-import { InboxView } from "./inbox-view";
+import { inboxConversationListService } from '@/server/inbox/inbox-conversation-list.service';
+import { settingsChannelsService } from '@/server/settings-channels.service';
+import { InboxView } from './inbox-view';
 
 export default async function InboxPage() {
   const [conversationsResult, channelsResult] = await Promise.allSettled([
@@ -11,11 +11,16 @@ export default async function InboxPage() {
   return (
     <InboxView
       initialConversations={
-        conversationsResult.status === "fulfilled" ? conversationsResult.value : []
+        conversationsResult.status === 'fulfilled'
+          ? conversationsResult.value
+          : []
       }
-      initialChannels={channelsResult.status === "fulfilled" ? channelsResult.value : []}
+      initialChannels={
+        channelsResult.status === 'fulfilled' ? channelsResult.value : []
+      }
       initialLoadFailed={
-        conversationsResult.status === "rejected" || channelsResult.status === "rejected"
+        conversationsResult.status === 'rejected' ||
+        channelsResult.status === 'rejected'
       }
     />
   );
