@@ -1,0 +1,151 @@
+{
+    "request_id": "req-demo-1",
+    "type": "result",
+    "data": {
+        "request_id": "req-demo-1",
+        "conversation_id": "conv-demo-1",
+        "evaluated_at": "2026-09-19T23:52:15.571412Z",
+        "analysis": {
+            "summary": "Customer initiated conversation asking about available products in Portuguese.",
+            "intent": "discover_products",
+            "sales_stage": "discovery",
+            "signals": [
+                "product_inquiry",
+                "first_contact"
+            ],
+            "known_information": {
+                "channel": "whatsapp",
+                "customer_question": "What are your products",
+                "language": "Portuguese"
+            },
+            "missing_information": [
+                "Specific product categories of interest",
+                "Customer use case or need",
+                "Budget range",
+                "Timeline for purchase",
+                "Decision maker information"
+            ]
+        },
+        "recommendation": {
+            "primary_action": "discovery_question",
+            "reason": "Customer asked about products in Portuguese via WhatsApp. First contact - need to understand their specific interests (category, gender, occasion) before recommending specific products. Provide brief catalog overview and ask focused question.",
+            "alternative_actions": [
+                "present_product_catalog",
+                "ask_budget_range",
+                "schedule_follow_up"
+            ]
+        },
+        "follow_up": {
+            "objective": "Discover customer's specific product interests and guide them to relevant categories",
+            "message": "Temos vestidos, camisas, calças, t-shirts, sneakers, óculos e bolsas. O que procura — roupa de senhora, homem ou acessórios?",
+            "products": [
+                {
+                    "id": "baia-w-dress-001",
+                    "name": "Luanda Linen Midi Dress",
+                    "evidence_ids": [
+                        "ev-product-48"
+                    ],
+                    "image_url": null
+                }
+            ],
+            "questions": [
+                "Qual categoria tem mais interesse: senhora, homem ou acessórios?"
+            ],
+            "sales_techniques": [
+                {}
+            ],
+            "next_expected_action": "Customer responds with category preference or specific product interest",
+            "schedule": {
+                "send_in": "now",
+                "send_at": null,
+                "timezone": "Africa/Luanda",
+                "reason": "Customer is awaiting immediate reply on WhatsApp"
+            }
+        },
+        "evidence": [
+            {
+                "id": "ev-tenant-0-availability",
+                "scope": "tenant",
+                "source": "Product Information and Stock Policy > Availability",
+                "excerpt": "Product Information and Stock Policy\nAvailability\n- Stock status in the knowledge base is indicative.\n- Confirm the requested SKU, size, color and quantity before payment.\n- Limited stock must not be used to create false urgency.\n- A product is reserved only under the payment and reservation policy.",
+                "product_id": null,
+                "image_url": null
+            },
+            {
+                "id": "ev-tenant-1",
+                "scope": "tenant",
+                "source": "Atlantic Round Sunglasses (BAI-AEW-001)",
+                "excerpt": "- \"[[tenants/baia-luanda/commercial/price-list]]\"\n- \"[[tenants/baia-luanda/policies/product-information-and-stock]]\"\n- \"[[tenants/baia-luanda/policies/returns-and-exchanges]]\" compatible_with:\n- \"[[tenants/baia-luanda/products/women/luanda-linen-midi-dress]]\"\n- \"[[tenants/baia-luanda/products/women/mussulo-weekend-dress]]\"\n- \"[[tenants/baia-luanda/products/women/noite-da-baia-dress]]\"",
+                "product_id": "baia-a-eyewear-001",
+                "image_url": "https://unsplash.com/photos/a-pair-of-sunglasses-sitting-on-top-of-a-sandy-beach-oXefOg_YL64"
+            },
+            {
+                "id": "ev-tenant-2",
+                "scope": "tenant",
+                "source": "Mussulo Weekend Dress (BAI-WDR-003)",
+                "excerpt": "- \"[[tenants/baia-luanda/commercial/price-list]]\"\n- \"[[tenants/baia-luanda/policies/product-information-and-stock]]\"\n- \"[[tenants/baia-luanda/policies/returns-and-exchanges]]\" compatible_with:\n- \"[[tenants/baia-luanda/products/accessories/atlantic-round-sunglasses]]\" alternative_to:\n- \"[[tenants/baia-luanda/products/women/luanda-linen-midi-dress]]\"",
+                "product_id": "baia-w-dress-003",
+                "image_url": "https://unsplash.com/photos/a-woman-wearing-a-dress-AQSv0J3wYLM"
+            },
+            {
+                "id": "ev-tenant-3",
+                "scope": "tenant",
+                "source": "Baía Structured Handbag (BAI-ABG-001)",
+                "excerpt": "- \"[[tenants/baia-luanda/commercial/price-list]]\"\n- \"[[tenants/baia-luanda/policies/product-information-and-stock]]\"\n- \"[[tenants/baia-luanda/policies/returns-and-exchanges]]\" compatible_with:\n- \"[[tenants/baia-luanda/products/women/luanda-linen-midi-dress]]\"\n- \"[[tenants/baia-luanda/products/women/noite-da-baia-dress]]\"\n- \"[[tenants/baia-luanda/products/men/cacuaco-oxford-shirt]]\"",
+                "product_id": "baia-a-bag-001",
+                "image_url": "https://unsplash.com/photos/a-brown-leather-handbag-on-a-white-background-zxPo13geJ5U"
+            },
+            {
+                "id": "ev-product-16",
+                "scope": "tenant",
+                "source": "Marginal City Sneakers (BAI-ASH-001)",
+                "excerpt": "id: baia-a-shoes-001\ntenant_id: baia-luanda\ndoc_type: product\nsku: BAI-ASH-001\ntitle: Marginal City Sneakers\nstatus: approved\nproduction_ready: true\nlanguage: en\ncategory: accessories\nsubcategory: footwear\nproduct_type: footwear\nprice_aoa: 46900\nsizes: [36, 37, 38, 39, 40, 41, 42, 43, 44]\ncolors: [white-sand, charcoal]\nstock_status: limited-stock\nstock_updated_at: 2026-09-13\nimage_reference_url: https://unsplash.com/photos/sneakers-on-display-stands-under-warm-focused-lighting-DXTT02-ee-8\nimage_license: Unsplash License\nimage_role: illustrative-reference\nupdated_at: 2026-09-13\nrelated:",
+                "product_id": "baia-a-shoes-001",
+                "image_url": "https://unsplash.com/photos/sneakers-on-display-stands-under-warm-focused-lighting-DXTT02-ee-8"
+            },
+            {
+                "id": "ev-product-24",
+                "scope": "tenant",
+                "source": "Baobab Essential T-Shirt (BAI-MTS-001)",
+                "excerpt": "id: baia-m-tee-001\ntenant_id: baia-luanda\ndoc_type: product\nsku: BAI-MTS-001\ntitle: Baobab Essential T-Shirt\nstatus: approved\nproduction_ready: true\nlanguage: en\ncategory: men\nsubcategory: t-shirts\nproduct_type: clothing\nprice_aoa: 14900\nsizes: [S, M, L, XL, XXL]\ncolors: [black, white, olive]\nstock_status: in-stock\nstock_updated_at: 2026-09-13\nimage_reference_url: https://unsplash.com/photos/black-crew-neck-t-shirt-Wr0TpKqf26s\nimage_license: Unsplash License\nimage_role: illustrative-reference\nupdated_at: 2026-09-13\nrelated:",
+                "product_id": "baia-m-tee-001",
+                "image_url": "https://unsplash.com/photos/black-crew-neck-t-shirt-Wr0TpKqf26s"
+            },
+            {
+                "id": "ev-product-32",
+                "scope": "tenant",
+                "source": "Cacuaco Oxford Shirt (BAI-MSH-001)",
+                "excerpt": "id: baia-m-shirt-001\ntenant_id: baia-luanda\ndoc_type: product\nsku: BAI-MSH-001\ntitle: Cacuaco Oxford Shirt\nstatus: approved\nproduction_ready: true\nlanguage: en\ncategory: men\nsubcategory: shirts\nproduct_type: clothing\nprice_aoa: 27900\nsizes: [S, M, L, XL, XXL]\ncolors: [white, sky-blue, stone-grey]\nstock_status: in-stock\nstock_updated_at: 2026-09-13\nimage_reference_url: https://unsplash.com/photos/a-close-up-of-a-shirt-on-a-mannequin-wd0tyLplb9c\nimage_license: Unsplash License\nimage_role: illustrative-reference\nupdated_at: 2026-09-13\nrelated:",
+                "product_id": "baia-m-shirt-001",
+                "image_url": "https://unsplash.com/photos/a-close-up-of-a-shirt-on-a-mannequin-wd0tyLplb9c"
+            },
+            {
+                "id": "ev-product-40",
+                "scope": "tenant",
+                "source": "Ilha Straight Jeans (BAI-MJN-001)",
+                "excerpt": "id: baia-m-jeans-001\ntenant_id: baia-luanda\ndoc_type: product\nsku: BAI-MJN-001\ntitle: Ilha Straight Jeans\nstatus: approved\nproduction_ready: true\nlanguage: en\ncategory: men\nsubcategory: jeans\nproduct_type: clothing\nprice_aoa: 32900\nsizes: [28, 30, 32, 34, 36, 38, 40]\ncolors: [dark-indigo, mid-blue]\nstock_status: in-stock\nstock_updated_at: 2026-09-13\nimage_reference_url: https://unsplash.com/photos/a-pair-of-jeans-r-ZMdzBOw-o\nimage_license: Unsplash License\nimage_role: illustrative-reference\nupdated_at: 2026-09-13\nrelated:",
+                "product_id": "baia-m-jeans-001",
+                "image_url": "https://unsplash.com/photos/a-pair-of-jeans-r-ZMdzBOw-o"
+            },
+            {
+                "id": "ev-product-48",
+                "scope": "tenant",
+                "source": "Luanda Linen Midi Dress (BAI-WDR-001)",
+                "excerpt": "id: baia-w-dress-001\ntenant_id: baia-luanda\ndoc_type: product\nsku: BAI-WDR-001\ntitle: Luanda Linen Midi Dress\nstatus: approved\nproduction_ready: true\nlanguage: en\ncategory: women\nsubcategory: dresses\nproduct_type: clothing\nprice_aoa: 39900\nsizes: [XS, S, M, L, XL]\ncolors: [lavender, sand]\nstock_status: in-stock\nstock_updated_at: 2026-09-13\nimage_reference_url: https://unsplash.com/photos/a-person-in-a-dress-DlsJEuIiq2I\nimage_license: Unsplash License\nimage_role: illustrative-reference\nupdated_at: 2026-09-13\nrelated:",
+                "product_id": "baia-w-dress-001",
+                "image_url": "https://unsplash.com/photos/a-person-in-a-dress-DlsJEuIiq2I"
+            },
+            {
+                "id": "ev-product-65",
+                "scope": "tenant",
+                "source": "Noite da Baía Dress (BAI-WDR-002)",
+                "excerpt": "id: baia-w-dress-002\ntenant_id: baia-luanda\ndoc_type: product\nsku: BAI-WDR-002\ntitle: Noite da Baía Dress\nstatus: approved\nproduction_ready: true\nlanguage: en\ncategory: women\nsubcategory: occasion-dresses\nproduct_type: clothing\nprice_aoa: 52900\nsizes: [XS, S, M, L]\ncolors: [black]\nstock_status: limited-stock\nstock_updated_at: 2026-09-13\nimage_reference_url: https://unsplash.com/photos/woman-wearing-black-dress-EoVzkcclFqs\nimage_license: Unsplash License\nimage_role: illustrative-reference\nupdated_at: 2026-09-13\nrelated:",
+                "product_id": "baia-w-dress-002",
+                "image_url": "https://unsplash.com/photos/woman-wearing-black-dress-EoVzkcclFqs"
+            }
+        ],
+        "confidence": 0.9,
+        "requires_human": false,
+        "warnings": []
+    }
+}

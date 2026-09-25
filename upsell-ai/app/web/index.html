@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Nexo Support AI</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+        <script>
+            tailwind.config = {
+              plugins: [
+                // Loaded via CDN script below; this is just to register the class.
+              },
+            };
+        </script>
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5/dist/typography.min.css"
+        />
+        <style>
+            .streaming-cursor::after {
+                content: "▍";
+                display: inline-block;
+                margin-left: 2px;
+                animation: blink 1s steps(2) infinite;
+                color: #9ca3af;
+            }
+            @keyframes blink {
+                50% {
+                    opacity: 0;
+                }
+            }
+            .status-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 9999px;
+                background: #9ca3af;
+                animation: pulse 1.2s ease-in-out infinite;
+            }
+            @keyframes pulse {
+                50% {
+                    opacity: 0.25;
+                }
+            }
+        </style>
+    </head>
+    <body class="h-screen flex flex-col bg-white text-gray-900 antialiased">
+        <div id="empty-state" class="flex-1 flex items-center justify-center">
+            <h1 class="text-2xl sm:text-3xl font-semibold text-gray-400">
+                How can I help you today?
+            </h1>
+        </div>
+
+        <main id="messages" class="hidden flex-1 overflow-y-auto">
+            <div class="max-w-2xl mx-auto w-full px-4 py-6 space-y-6"></div>
+        </main>
+
+        <div
+            class="w-full bg-gradient-to-t from-white via-white to-transparent pb-[max(1rem,env(safe-area-inset-bottom))] pt-4"
+        >
+            <form id="form" class="max-w-2xl mx-auto w-full px-4">
+                <div
+                    class="flex items-end gap-2 bg-white border border-gray-300 rounded-3xl shadow-sm px-4 py-2 focus-within:border-gray-400 transition"
+                >
+                    <input
+                        id="input"
+                        type="text"
+                        placeholder="Message…"
+                        autocomplete="off"
+                        class="flex-1 bg-transparent outline-none text-base py-2 placeholder:text-gray-400 disabled:opacity-50"
+                    />
+                    <button
+                        id="send"
+                        type="submit"
+                        disabled
+                        class="shrink-0 w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center disabled:bg-gray-200 disabled:text-gray-400 transition"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            class="w-4 h-4"
+                        >
+                            <path d="M3 3l18 9-18 9 4-9z" />
+                        </svg>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <script>
+            marked.setOptions({ gfm: true, breaks: true });
+
+            function normalizeSupportMarkdown(text) {
+                return text
+                    .replace(/(^|\n)```[\w-]*[^\n]*\n?/g, "$1")
+                    .replace(/\n?```(?=\n|$)/g, "");
+            }
+
+            function renderMarkdown(text) {
+                return DOMPurify.sanitize(
+                    marked.parse(normalizeSupportMarkdown(text)),
+                );
+            }
+
+            const form = document.getElementById("form");
+            const input = document.getElementById("input");
+            const send = document.getElementById("send");
+            const emptyState = document.getElementById("empty-state");
+            const messages = document.getElementById("messages");
+            const list = messages.querySelector("div");
+
+            let streaming = false;
+
+            input.addEventListener("input", () => {
+                send.disabled = streaming || !input.value.trim();
+            });
+
+            form.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const text = input.value.trim();
+                if (!text || streaming) return;
+
+                emptyState.classList.add("hidden");
+                messages.classList.remove("hidden");
+
+                const userBubble = document.createElement("div");
+                userBubble.className = "flex justify-end";
+                userBubble.innerHTML = `<div class="max-w-[85%] bg-gray-100 rounded-2xl px-4 py-2.5 text-base whitespace-pre-wrap break-words">${escape(text)}</div>`;
+                list.appendChild(userBubble);
+
+                input.value = "";
+                streaming = true;
+                send.disabled = true;
+                input.disabled = true;
+                scrollDown();
+
+                streamReply(text);
+            });
+
+            async function streamReply(prompt) {
+                const aiWrap = document.createElement("div");
+                aiWrap.className = "flex justify-start";
+                const col = document.createElement("div");
+                col.className = "max-w-[85%] space-y-1.5";
+                const statusLine = document.createElement("div");
+                statusLine.className =
+                    "flex items-center gap-2 text-sm text-gray-400 px-1";
+                statusLine.innerHTML =
+                    '<span class="status-dot"></span><span class="status-text">Thinking…</span>';
+                const aiBubble = document.createElement("div");
+                aiBubble.className =
+                    "text-base break-words streaming-cursor prose prose-sm prose-gray max-w-none";
+                aiBubble.innerHTML = "";
+                col.appendChild(statusLine);
+                col.appendChild(aiBubble);
+                aiWrap.appendChild(col);
+                list.appendChild(aiWrap);
+
+                let answer = "";
+                let thinking = false;
+                let thinkBuffer = "";
+
+                function tagSuffix(text, tag) {
+                    const max = Math.min(text.length, tag.length - 1);
+                    for (let size = max; size > 0; size -= 1) {
+                        const suffix = text.slice(-size);
+                        if (tag.startsWith(suffix)) return suffix;
+                    }
+                    return "";
+                }
+
+                function showThinking() {
+                    statusLine.querySelector(".status-text").textContent =
+                        "Thinking";
+                }
+
+                function stripThinking(piece) {
+                    let text = thinkBuffer + piece;
+                    let visible = "";
+                    thinkBuffer = "";
+
+                    while (text) {
+                        if (thinking) {
+                            const end = text.indexOf("</think>");
+                            if (end < 0) {
+                                thinkBuffer = tagSuffix(text, "</think>");
+                                return visible;
+                            }
+                            text = text.slice(end + "</think>".length);
+                            thinking = false;
+                            continue;
+                        }
+
+                        const start = text.indexOf("<think>");
+                        if (start < 0) {
+                            const suffix = tagSuffix(text, "<think>");
+                            if (suffix) {
+                                visible += text.slice(0, -suffix.length);
+                                thinkBuffer = suffix;
+                            } else {
+                                visible += text;
+                            }
+                            return visible;
+                        }
+
+                        visible += text.slice(0, start);
+                        text = text.slice(start + "<think>".length);
+                        thinking = true;
+                        showThinking();
+                    }
+
+                    return visible;
+                }
+
+                function handleEvent(event) {
+                    if (event.type === "status" && event.text) {
+                        if (!thinking) {
+                            statusLine.querySelector(
+                                ".status-text",
+                            ).textContent = event.text;
+                        }
+                        if (isNearBottom()) scrollDown();
+                    } else if (
+                        event.type === "token" &&
+                        event.content != null
+                    ) {
+                        const piece =
+                            typeof event.content === "string"
+                                ? event.content
+                                : (event.content || [])
+                                      .map(
+                                          (p) =>
+                                              (typeof p === "string"
+                                                  ? p
+                                                  : p && p.text) || "",
+                                      )
+                                      .join("");
+                        const visiblePiece = stripThinking(piece);
+                        if (!visiblePiece) return;
+                        answer += visiblePiece;
+                        aiBubble.innerHTML = renderMarkdown(answer);
+                        if (isNearBottom()) scrollDown();
+                    }
+                }
+
+                try {
+                    const res = await fetch("/chat", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ message: prompt }),
+                    });
+
+                    if (!res.ok || !res.body) {
+                        showError();
+                        return;
+                    }
+
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = "";
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        let newlineIndex;
+                        while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
+                            const line = buffer.slice(0, newlineIndex).trim();
+                            buffer = buffer.slice(newlineIndex + 1);
+                            if (!line) continue;
+                            let event;
+                            try {
+                                event = JSON.parse(line);
+                            } catch (_parseErr) {
+                                continue;
+                            }
+                            handleEvent(event);
+                        }
+                    }
+
+                    if (!answer.trim()) showError();
+                } catch (_err) {
+                    if (!answer.trim()) showError();
+                } finally {
+                    statusLine.remove();
+                    aiBubble.classList.remove("streaming-cursor");
+                    streaming = false;
+                    send.disabled = !input.value.trim();
+                    input.disabled = false;
+                    input.focus();
+                }
+
+                function showError() {
+                    aiBubble.textContent =
+                        "Sorry, something went wrong. Please try again.";
+                    aiBubble.classList.remove("streaming-cursor");
+                }
+            }
+
+            function isNearBottom() {
+                return (
+                    messages.scrollHeight -
+                        messages.scrollTop -
+                        messages.clientHeight <
+                    80
+                );
+            }
+
+            function scrollDown() {
+                messages.scrollTo({
+                    top: messages.scrollHeight,
+                    behavior: "smooth",
+                });
+            }
+
+            function escape(s) {
+                return s.replace(
+                    /[&<>"']/g,
+                    (c) =>
+                        ({
+                            "&": "&amp;",
+                            "<": "&lt;",
+                            ">": "&gt;",
+                            '"': "&quot;",
+                            "'": "&#39;",
+                        })[c],
+                );
+            }
+
+            input.focus();
+        </script>
+    </body>
+</html>

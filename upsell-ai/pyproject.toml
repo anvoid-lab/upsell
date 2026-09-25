@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "agents*", "core*", "retriaval*", "workflows*"]
+
+
+[project]
+name = "app"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "numpy>=2.5.1",
+    "requests>=2.34.2",
+    "fastapi>=0.141.1",
+    "uvicorn>=0.52.3",
+    "python-dotenv>=1.2.2",
+    "openai-agents>=0.22.3",
+    "supabase>=2.31.0",
+    "redis[asyncio]>=8.1.0",
+]
+
+
+[project.scripts]
+rag = "retriaval.embed:run"
+dev = "app.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
+
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
