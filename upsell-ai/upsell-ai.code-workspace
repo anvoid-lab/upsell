@@ -1,0 +1,13 @@
+{
+  "folders": [
+    {
+      "name": "upsell-ai",
+      "path": "."
+    },
+    {
+      "name": "supabase",
+      "path": "../supabase"
+    }
+  ],
+  "settings": {}
+}

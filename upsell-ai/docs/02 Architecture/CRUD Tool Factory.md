@@ -4,6 +4,7 @@ title: CRUD Tool Factory
 updated: 2026-09-25
 related:
   - "[[02 Architecture/Agent Boundaries]]"
+  - "[[02 Architecture/Repository Boundary]]"
   - "[[01 Backlog/Phase 02 - Direct Business Operations]]"
   - "[[03 Contracts/Agent Context]]"
 ---

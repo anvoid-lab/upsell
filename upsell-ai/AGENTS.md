@@ -1,69 +1,84 @@
 # Development Rules
 
-## Plan approval gate
+## Workflow
 
-Every task and phase must start with a written plan in the Obsidian vault. The
-plan must define scope, affected areas, acceptance criteria, risks, and
-verification.
+Every backlog phase follows:
 
-Implementation requires explicit manual approval of the plan. Until approval:
+`plan → approval → code → approval → review & refactor`
 
-- Never create, modify, delete, or rename source code.
-- Never modify tests, migrations, configuration, dependencies, or generated code.
-- Read-only investigation and planning documentation are allowed.
+Use an Agent Team when useful. Keep the team minimal and let the lead agent decide roles, delegation, dependencies, and parallel work.
 
-Approval applies only to the approved scope. Any material scope change requires
-a new approval. Without manual approval, never alter code.
+No phase may continue to the next step without explicit manual approval.
 
-Planning communication must be short and objective. Include only the information
-needed to make a decision, avoiding long explanations and unnecessary repetition
-to reduce token usage.
+## Plan
 
-## Preserve manual changes
+Before implementation, produce a concise execution plan based on the task and current project context.
 
-Treat any code changed manually by the developer as the latest version. Never
-overwrite, revert, reset, or replace those changes. Continue the implementation
-from the current working tree and adapt the plan or code around them.
+The plan must cover:
 
-## Source of truth
+- what will be implemented
+- affected areas
+- implementation approach
+- relevant architectural decisions
+- expected tests
+- important risks or constraints
 
-Use `docs/` as the source of truth for project phases, architecture, contracts,
-and decisions. Read the relevant notes before implementation and update them
-when behavior or scope changes.
+Do not modify code or the Obsidian vault during planning.
 
-## Development principles
+Implementation starts only after explicit approval.
 
-- Prefer the simplest implementation that satisfies the approved scope.
-- Avoid unnecessary abstractions, dependencies, agents, orchestration, and LLM calls.
-- Do not build for hypothetical requirements.
-- Keep functions focused; avoid one-line wrappers and unnecessary helpers.
-- Use clear, idiomatic Python with strong typing and explicit Pydantic models at
-  application boundaries.
-- Validate external input at boundaries and treat model output as untrusted input.
-- Keep concerns separated according to the existing project structure.
-- Keep business logic out of FastAPI route handlers.
-- Keep deterministic rules, authorization, idempotency, and side effects in
-  application services.
-- Add comments only for non-obvious constraints or intentional trade-offs.
-- Do not add comments that restate the code.
+Any material scope change requires a new approval.
 
-## Project structure
+## Code
 
-- `app/`: FastAPI application and API concerns
-- `core/`: configuration, logging, and shared infrastructure
-- `agents/`: agent definitions and prompts
-- `knowledge-base/`: sales knowledge content
-- `workflows/`: background and multi-step execution
-- `scripts/`: developer and data utilities
-- `docs/`: Obsidian planning vault
+After approval, implement only the approved scope.
 
-## Verification
+Follow established engineering principles:
 
-- Every feature phase must have an end-to-end test for its owned journey.
-- Prefer deterministic fake adapters for models, databases, vector stores,
-  schedulers, and external services.
-- Test success, validation failure, authorization failure, retries, and safety
-  behavior relevant to the change.
-- Run focused checks first, then the full relevant test suite.
-- Update `pyproject.toml` and `uv.lock` together when dependencies change.
-- Do not commit secrets, environment files, generated caches, or unrelated changes.
+- separation of concerns
+- high cohesion and low coupling
+- explicit contracts and boundaries
+- dependency inversion
+- composition over unnecessary inheritance
+- boundary validation
+- deterministic business rules
+- defensive handling of external or model-generated data
+- minimal abstractions
+- maintainable control and data flow
+
+Preserve existing architectural conventions and treat manual developer changes as authoritative.
+
+Implement relevant tests together with the feature.
+
+### Dependency Injection
+
+Use FastAPI dependency injection as the standard.
+
+Always use class-based constructor injection with `Depends()`.
+
+Services, agents, policies, registries, repositories, and infrastructure components should be represented by classes.
+
+Avoid factory functions such as `get_service()`, `get_agent()`, or `get_policy()` when FastAPI can construct the dependency directly.
+
+Classes resolved through `Depends()` should normally receive only other injectable classes. Keep internal configuration values outside the HTTP dependency graph unless they intentionally represent request input.
+
+## Review & Refactor
+
+Review and refactoring require explicit approval after implementation.
+
+During review, the Obsidian vault in `docs/` becomes the source of truth for architecture, decisions, rules, contracts, and constraints.
+
+Read only the vault notes relevant to the implemented scope.
+
+The reviewer must:
+
+- compare the implementation against the decisions and rules already defined in the vault
+- identify architectural inconsistencies, regressions, duplicated logic, weak abstractions, validation issues, security risks, and missing tests
+- refactor the code when necessary to comply with the established project standards
+- preserve manual developer changes and avoid unrelated refactoring
+- identify new decisions or changes introduced by the completed work
+- keep the relevant vault documentation synchronized with the final approved implementation
+
+Whenever possible, review should be performed by an agent that did not primarily implement the affected code.
+
+Do not scan the entire vault unnecessarily.

@@ -9,13 +9,17 @@ related:
 
 # Persistence and Context
 
-Use PostgreSQL/Supabase as the application source of truth and Redis as the
-rebuildable agent-context cache. Keep stable,
+Use PostgreSQL in the sibling `../supabase` project as the application source of
+truth and Redis as the rebuildable agent-context cache. The workspace link is
+[[05 Workspace/External Projects]]. Keep stable,
 queryable fields relational: tenant, actor, business, conversation, run, action,
 approval, schedule, status, timestamps, and idempotency keys. Keep evolving
-agent state in JSONB, including serialized SDK run state where needed. The current
-schema has no relational customer table; customer context comes from
-`conversations.contact` until a future approved migration changes that boundary.
+agent state in JSONB, including serialized SDK run state where needed. Customer
+and product rows required by `AgentContext` are migrations in that sibling
+project; this repository reaches them only through `lib/supabase`, and services
+read them through [[02 Architecture/Repository Boundary]]. Supabase credentials
+live in `core/config.py` (`SUPABASE_URL`, `SUPABASE_KEY`), which is the single
+configuration module — no `Settings` class exists.
 
 Redis keeps customer context, recent messages, summaries, runtime state, and the
 last response between requests. On cache miss, the application rebuilds context

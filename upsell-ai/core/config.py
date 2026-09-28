@@ -26,3 +26,18 @@ SUPPORTED_EXTENSIONS = (
     "*.md",
     "*.csv",
 )
+
+# Database
+SUPABASE_URL = os.environ.get("SUPABASE_URL", None)
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", os.environ.get("SUPABASE_SECRET_KEY", None))
+SUPABASE_SECRET_KEY = SUPABASE_KEY
+
+# Redis context cache
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+CONTEXT_TTL_SECONDS = int(os.environ.get("CONTEXT_TTL_SECONDS", "1800"))
+IDEMPOTENCY_TTL_SECONDS = int(os.environ.get("IDEMPOTENCY_TTL_SECONDS", "86400"))
+
+# Server
+API_HOST = os.environ.get("API_HOST", "0.0.0.0")
+API_PORT = int(os.environ.get("API_PORT", "8000"))
+

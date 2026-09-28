@@ -1,7 +1,7 @@
 ---
 type: contract
 title: Agent Context
-updated: 2026-09-25
+updated: 2026-09-26
 related:
   - "[[03 Contracts/API]]"
   - "[[03 Contracts/Agent Runtime]]"
@@ -56,8 +56,10 @@ response: AgentResponse | null
 `response` starts as `null` and uses the shared contract from
 [[03 Contracts/API]]. `state` stores evolving runtime state; it is not the source
 of truth for business data. The complete context is cached in Redis under a key
-scoped by `business_id` and `customer_id` as described in
-[[02 Architecture/Redis Context Cache]].
+scoped by `tenant_id` and `customer_id` as described in
+[[02 Architecture/Redis Context Cache]]. `tenant_id` is the `X-Tenant-Id` request
+header and matches `businesses.id` in the sibling Supabase project. Price and
+stock are never stored in the cached value.
 
 ## Customer
 
@@ -127,3 +129,27 @@ deleted_at: datetime | null
 `price` uses a fixed-precision decimal. `stock` is a non-negative integer.
 `images`, `attributes`, and `metadata` are JSONB values. The application never
 lets the model invent price or stock.
+
+## Contract Structure and Validation
+
+Contracts are organized into individual modules under `core/contracts/**.py`:
+
+- `core/contracts/base.py` — `ContractModel` (rejects extra fields) and `RecordModel` (tolerates additive fields)
+- `core/contracts/message.py` — `Message`, `Media`, `MessageRole`
+- `core/contracts/conversation_request.py` — `ConversationRequest`
+- `core/contracts/customer.py` — `Customer`, `CustomerStatus`
+- `core/contracts/business.py` — `Business`
+- `core/contracts/product.py` — `Product`, `ProductImage`
+- `core/contracts/error_detail.py` — `ErrorDetail`
+- `core/contracts/agent_response.py` — `AgentResponse`, `ResponseType`
+- `core/contracts/agent_context.py` — `AgentContext`
+- `core/contracts/health.py` — `HealthResponse`
+- `core/contracts/validate_contract.py` — `validate_contract(model_cls, data)`,
+  which fails with an application error
+
+Incoming user requests such as `ConversationRequest` are validated at the route
+boundary, declared per route as a dependency (`validated_body` in
+`app/api/validators.py`) using `validate_contract`. If validation fails, the
+request is rejected with HTTP 400 and a structured error envelope before the
+service runs.
+

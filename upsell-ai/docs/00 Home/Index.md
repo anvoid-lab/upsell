@@ -1,7 +1,7 @@
 ---
 type: home
 title: Upsell AI Vault Index
-updated: 2026-09-25
+updated: 2026-09-26
 related:
   - "[[00 Home/How to use]]"
   - "[[02 Architecture/Overview]]"
@@ -30,8 +30,10 @@ multiple streams can be implemented and tested in parallel.
 - [[02 Architecture/Overview]]
 - [[02 Architecture/Agent Boundaries]]
 - [[02 Architecture/CRUD Tool Factory]]
+- [[02 Architecture/Repository Boundary]]
 - [[02 Architecture/Testing Strategy]]
 - [[02 Architecture/Persistence and Context]]
+- [[02 Architecture/Request Lifecycle and State]]
 - [[02 Architecture/Redis Context Cache]]
 - [[02 Architecture/Sales Knowledge RAG]]
 - [[03 Contracts/Agent Context]]
@@ -42,6 +44,12 @@ multiple streams can be implemented and tested in parallel.
 - [[04 Decisions/ADR-002 Defer Durable Agent Execution Persistence]]
 - [[04 Decisions/ADR-003 Async First]]
 - [[04 Decisions/ADR-001 Main Agent Owns Routing]]
+- [[04 Decisions/ADR-004 Errors Are Declared, Not Built In Place]]
+- [[04 Decisions/ADR-005 One Tenant Context Per Request]]
+- [[04 Decisions/ADR-006 Dependencies Are Declared, Not Constructed]]
+- [[04 Decisions/ADR-007 A Feature Is One Folder]]
+- [[04 Decisions/ADR-008 The Repository Owns Persistence Rules]]
+- [[05 Workspace/External Projects]]
 
 ## Planning rule
 

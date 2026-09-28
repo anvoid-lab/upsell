@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "03 Contracts/Agent Context.md",
+                "file": "02 Architecture/Overview.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Agent Context"
+              "title": "Overview"
             }
           }
         ]
@@ -99,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "03 Contracts/Agent Context.md",
+                "file": "02 Architecture/Overview.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -118,7 +118,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "03 Contracts/Agent Context.md",
+                "file": "02 Architecture/Overview.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
@@ -161,7 +161,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "03 Contracts/Agent Context.md",
+                "file": "02 Architecture/Overview.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
@@ -190,7 +190,18 @@
   },
   "active": "2d34722b484dfaf8",
   "lastOpenFiles": [
+    "02 Architecture/Request Lifecycle and State.md",
+    "04 Decisions/ADR-008 The Repository Owns Persistence Rules.md",
+    "04 Decisions/ADR-007 A Feature Is One Folder.md",
+    "04 Decisions/ADR-006 Dependencies Are Declared, Not Constructed.md",
+    "04 Decisions/ADR-005 One Tenant Context Per Request.md",
+    "04 Decisions/ADR-004 Errors Are Declared, Not Built In Place.md",
+    "01 Backlog/Phase 01 - Foundation and E2E Harness.md",
+    "05 Workspace/External Projects.md",
     "00 Home/Index.md",
+    "02 Architecture/Repository Boundary.md",
+    "05 Workspace",
+    "03 Contracts/Agent Context.md",
     "00 Home/How to use.md",
     "01 Backlog/Phase 04 - Human Approval and Governed Actions.md",
     "01 Backlog/Phase 05 - Scheduled Follow-ups.md",
@@ -205,15 +216,6 @@
     "04 Decisions/ADR-002 Defer Durable Agent Execution Persistence.md",
     "02 Architecture/Sales Knowledge RAG.md",
     "02 Architecture/Redis Context Cache.md",
-    "02 Architecture/Persistence and Context.md",
-    "03 Contracts/Sales Agent Output.md",
-    "03 Contracts/API.md",
-    "03 Contracts/Agent Runtime.md",
-    "03 Contracts/Agent Context.md",
-    "01 Backlog/Phase 01 - Foundation and E2E Harness.md",
-    "03 Contracts/Conversation.md",
-    "03 Contracts/Approval and Action.md",
-    "02 Architecture/Overview.md",
-    "01 Backlog/Parallel Delivery Map.md"
+    "02 Architecture/Persistence and Context.md"
   ]
 }
