@@ -1,7 +1,7 @@
 from fastapi import status
 from supabase import AsyncClient, acreate_client
 
-import core.config as config
+from core import config
 from core.exception import AppException
 from core.logger import logger
 

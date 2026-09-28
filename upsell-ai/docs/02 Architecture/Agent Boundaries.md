@@ -31,6 +31,8 @@ services remain authoritative over model recommendations.
 ## Knowledge base
 
 Only the Sales Agent can retrieve static sales playbooks, techniques, objection
-guidance, and sales-process knowledge through `ai_sales_knowledge`. Business,
-customer, product, price, and stock data come from deterministic operational
-tools. The entire sales corpus is never injected into every request.
+guidance, and sales-process knowledge through `ai_sales_knowledge`. Customer
+identity remains an opaque `TenantContext` value. Product data, including its
+media URLs, comes from validated product tools. Message media is separate
+conversation input used by the LLM to understand the user. The entire sales
+corpus is never injected into every request.

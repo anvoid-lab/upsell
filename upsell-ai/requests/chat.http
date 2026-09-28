@@ -1,60 +1,72 @@
 ### Conversation requests — POST /v1/chat
 ### Spec: docs/03 Contracts/API.md, docs/03 Contracts/Agent Context.md
 ### Run with: JetBrains HTTP Client or REST Client (VS Code).
-### Set the variables below with real ids before running.
+### Replace the scoped ids if your local environment uses different test data.
 
 @host = http://localhost:8000
 @tenantId = bc1864b0-8dec-4626-b6cf-bfe7659e8bd7
 @actorId = 12025b6b-c7f9-4102-aa5a-bb695008acf8
-@customerId = 00000000-0000-0000-0000-0000000000c1
-@conversationId =
+@customerId = 2c314e1a-743f-4e34-854a-75ee7074615a
+@conversationId = manual-test-conversation-001
 @newTurnIdempotencyKey = 3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607
 @continueTurnIdempotencyKey = b7e2c1d4-3a55-4a90-9f62-1c8d0e4f2a33
 
 
 ### Start a conversation (new)
-### conversation_id null creates a new conversation. X-Tenant-Id and X-Actor-Id are required.
-### Use the conversation_id from the response below as @conversationId for the next request.
+### Customer starts a sales conversation through WhatsApp.
+### conversation_id null starts a new conversation.
+### Tenant, actor, customer, and idempotency headers are required.
+
 POST {{host}}/v1/chat
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
 X-Actor-Id: {{actorId}}
-X-Idempotency-Key: "{{newTurnIdempotencyKey}}",
+X-Customer-Id: {{customerId}}
+X-Idempotency-Key: {{newTurnIdempotencyKey}}
 
 {
-  "conversation_id": "ffeefwefew",
+  "conversation_id": null,
   "messages": [
     {
       "role": "user",
-      "text": "Quais sao as empresas que trabalham com voces?",
+      "text": "Boa tarde. Vi os vossos produtos no WhatsApp e gostei de um modelo. Queria saber se ainda têm disponível e quanto está a custar.",
       "links": [],
       "media": []
     }
   ],
-  "metadata": {}
+  "metadata": {
+    "channel": "whatsapp"
+  }
 }
 
 
 ### Continue an existing conversation
-### Set @conversationId to a conversation_id returned by the previous run.
+### Customer follows up in the same WhatsApp sales conversation.
+### Use a real persisted conversation id when the conversation store is enabled.
+
 POST {{host}}/v1/chat
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
 X-Actor-Id: {{actorId}}
+X-Customer-Id: {{customerId}}
+X-Idempotency-Key: {{continueTurnIdempotencyKey}}
 
 {
   "conversation_id": "{{conversationId}}",
-  "customer_id": "{{customerId}}",
   "messages": [
     {
       "role": "user",
-      "text": "Quanto custa o plano profissional?",
+      "text": "É mesmo este da foto. Ainda têm em stock? E esse preço é o último ou dá para fazer um desconto? Também queria saber se fazem entrega em Luanda.",
       "links": [],
-      "media": []
+      "media": [
+        {
+          "url": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=80",
+          "type": "image"
+        }
+      ]
     }
   ],
-  "idempotency_key": "{{continueTurnIdempotencyKey}}",
   "metadata": {
-    "channel": "manual_test"
+    "channel": "whatsapp"
   }
 }

@@ -18,20 +18,14 @@ class ConversationService(BaseService[ConversationRequest]):
         self.agent = agent
 
     async def init(self, body: ConversationRequest) -> AgentResponse:
-        agent_context = AgentContext(
-            conversation_id=body.conversation_id,
-            messages=body.messages,
-        )
-
-        await agent_context.set(
-            self.ctx,
-            agent_context,
-        )
+        agent_context = AgentContext(run_id=self.ctx.run_id)
+        agent_context.conversation_id = body.conversation_id
+        agent_context.messages.extend(body.messages)
 
         response = await self.agent.run(agent_context)
 
         logger.info(
             "conversation turn completed",
-            request_id=self.ctx.run_id,
+            run_id=self.ctx.run_id,
         )
         return response

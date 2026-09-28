@@ -12,6 +12,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
 
+        if request.url.path == "/health":
+            return await call_next(request)
+
         tenant_id = request.headers.get("X-Tenant-Id")
         actor_id = request.headers.get("X-Actor-Id")
         idempotency_key = request.headers.get("X-Idempotency-Key")
@@ -19,8 +22,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not tenant_id or not actor_id or not idempotency_key:
             return AppException.json(
                 status=status.HTTP_400_BAD_REQUEST,
-                message="Bad request format",
-                details={"code": "missing_tenant"},
+                message="tenant, actor, and idempotency headers are required",
+                details={"code": "missing_request_scope", "retryable": False},
             )
 
         token = RequestContext.set(
@@ -29,10 +32,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 app=request.app.state._state.get("ctx"),
                 run_id=new_id(),
                 idempotency_key=idempotency_key,
-                cache_key=f"idempotency_key:{idempotency_key}",
+                cache_key=f"idempotency:{tenant_id}:{idempotency_key}",
                 tenant=TenantContext(
                     tenant_id=tenant_id,
                     actor_id=actor_id,
+                    customer_id=request.headers.get("X-Customer-Id"),
                 ),
             )
         )

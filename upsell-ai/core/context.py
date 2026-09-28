@@ -1,6 +1,6 @@
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from typing import Annotated, cast
+from typing import cast
 
 from fastapi import Request
 
@@ -10,7 +10,7 @@ from app.lib.redis import RedisCacheManager
 
 @dataclass()
 class AppContext:
-    dbconn: DatabaseClient
+    dbconn: DatabaseClient | None
     cache: RedisCacheManager
 
     @staticmethod
@@ -24,7 +24,7 @@ _request_ctx: ContextVar[RequestContext] = ContextVar("request_ctx")
 @dataclass
 class RequestContext:
     request: Request
-    app: Annotated
+    app: AppContext
     tenant: TenantContext
 
     idempotency_key: str
@@ -32,11 +32,11 @@ class RequestContext:
     cache_key: str
 
     @classmethod
-    def get(cls):
+    def get(cls) -> RequestContext:
         return _request_ctx.get()
 
     @classmethod
-    def set(cls, ctx) -> Token:
+    def set(cls, ctx: RequestContext) -> Token:
         return _request_ctx.set(ctx)
 
     @classmethod
@@ -48,7 +48,5 @@ class RequestContext:
 class TenantContext:
     tenant_id: str
     actor_id: str
+    customer_id: str | None = None
     tenant_id_column: str = "business_id"
-
-    # async def get_account(self, ctx: RequestContext) -> TenantContext:
-    #     return replace(self, customer_id=customer_id)

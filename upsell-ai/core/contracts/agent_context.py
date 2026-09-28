@@ -8,16 +8,11 @@ from core.contracts.message import Message
 
 
 class AgentContext(BaseModel):
+    run_id: str
     conversation_id: str | None = None
     messages: list[Message] = Field(default_factory=list)
     state: dict[str, Any] = Field(default_factory=dict)
     response: AgentResponse | None = None
-
-    # ctx: RequestContext = Field(
-    #     default_factory=RequestContext.get,
-    #     init=False,
-    #     exclude=True,
-    # )
 
     @classmethod
     async def get(cls, ctx: RequestContext) -> AgentContext | None:

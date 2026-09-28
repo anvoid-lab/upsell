@@ -20,21 +20,21 @@ async def health(request: Request, response: Response) -> HealthResponse:
 
 
 async def _redis_ok(request: Request) -> bool:
-    cache = getattr(request.app.state, "redis", None)
-    if cache is None:
+    ctx = getattr(request.app.state, "ctx", None)
+    if ctx is None or ctx.dbconn is None:
         return False
     try:
-        return await cache.ping()
+        return await ctx.cache.ping()
     except Exception:  # noqa: BLE001
         return False
 
 
 async def _database_ok(request: Request) -> bool:
-    client = getattr(request.app.state, "db_client", None)
-    if client is None:
+    ctx = getattr(request.app.state, "ctx", None)
+    if ctx is None:
         return False
     try:
-        await client.table("businesses").select("id").limit(1).execute()
+        await ctx.dbconn.table("businesses").select("id").limit(1).execute()
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False

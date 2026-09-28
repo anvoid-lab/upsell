@@ -1,155 +1,49 @@
 ---
 type: contract
 title: Agent Context
-updated: 2026-09-26
-related:
-  - "[[03 Contracts/API]]"
-  - "[[03 Contracts/Agent Runtime]]"
-  - "[[03 Contracts/Sales Agent Output]]"
+updated: 2026-09-28
 ---
 
 # Agent Context
 
-The Main Agent, Sales Agent, and tools share one `AgentContext`. It contains only
-the data required by the AI runtime and does not mirror the web inbox domain.
-
-## ConversationRequest
-
-```yaml
-conversation_id: string | null
-customer_id: string
-messages: Message[]
-idempotency_key: string
-metadata: Record<string, unknown>
-```
-
-`messages` must contain at least one valid message. `idempotency_key` prevents the
-same request from being processed twice.
-
-## Message
+`AgentContext` is the mutable state of one agent run. It is created by the chat
+service and passed to `Runner.run()` as local SDK context. The SDK and tools can
+read or update the same object, but it is not automatically visible to the
+model.
 
 ```yaml
-role: user | assistant
-text: string | null
-links: string[]
-media:
-  - url: string
-```
-
-A message must contain at least one non-empty value in `text`, `links`, or
-`media`.
-
-## AgentContext
-
-```yaml
-request_id: string
 run_id: string
 conversation_id: string | null
-customer: Customer
-business: Business
-products: Product[]
 messages: Message[]
 state: Record<string, unknown>
 response: AgentResponse | null
 ```
 
-`response` starts as `null` and uses the shared contract from
-[[03 Contracts/API]]. `state` stores evolving runtime state; it is not the source
-of truth for business data. The complete context is cached in Redis under a key
-scoped by `tenant_id` and `customer_id` as described in
-[[02 Architecture/Redis Context Cache]]. `tenant_id` is the `X-Tenant-Id` request
-header and matches `businesses.id` in the sibling Supabase project. Price and
-stock are never stored in the cached value.
+The context is a mutable Pydantic model. The service changes only the fields
+that need to change, using normal assignment and built-in list/dict methods:
 
-## Customer
-
-```yaml
-id: string
-name: string
-email: string | null
-phone: string | null
-language: string | null
-timezone: string | null
-status: lead | customer | inactive
-metadata: Record<string, unknown>
-created_at: datetime
-updated_at: datetime
+```python
+agent_context.conversation_id = body.conversation_id
+agent_context.messages.extend(body.messages)
+agent_context.state["key"] = value
+agent_context.response = response
 ```
 
-## Business
+It contains no customer, business, product, price, stock, or persisted media.
+Those concepts remain available as contracts for later phases only.
 
-```yaml
-id: string
-name: string
-description: string | null
-industry: string | null
-email: string | null
-phone: string | null
-website: string | null
-logo_url: string | null
-country_code: string = "AO"
-timezone: string = "Africa/Luanda"
-locale: string = "pt-AO"
-currency: string = "AOA"
-address: Record<string, unknown> | null
-business_hours: Record<string, unknown> | null
-metadata: Record<string, unknown> | null
-created_at: datetime
-updated_at: datetime
-deleted_at: datetime | null
-```
+## Request identity
 
-Stable scalar fields are relational columns. `address`, `business_hours`, and
-`metadata` are nullable JSONB columns. The defaults are application and database
-defaults and can be overridden per business.
+`TenantContext` owns `tenant_id`, `actor_id`, and optional opaque `customer_id`.
+The latter is supplied through `X-Customer-Id` and is not resolved by Phase 01.
 
-## Product
+## Message media
 
-```yaml
-id: string
-business_id: string
-sku: string
-name: string
-description: string | null
-category: string | null
-subcategory: string | null
-price: decimal
-currency: string
-stock: integer
-images:
-  - url: string
-attributes: Record<string, unknown>
-metadata: Record<string, unknown>
-active: boolean
-created_at: datetime
-updated_at: datetime
-deleted_at: datetime | null
-```
+`Message.media` accepts a URL and a `type` of `image` or `file`. Image URLs are
+passed as SDK image input and file URLs as SDK file input. The service does not
+download or store either resource. Message media belongs to the conversation
+and helps the LLM understand the user's input; it is not a product source.
 
-`price` uses a fixed-precision decimal. `stock` is a non-negative integer.
-`images`, `attributes`, and `metadata` are JSONB values. The application never
-lets the model invent price or stock.
-
-## Contract Structure and Validation
-
-Contracts are organized into individual modules under `core/contracts/**.py`:
-
-- `core/contracts/base.py` — `ContractModel` (rejects extra fields) and `RecordModel` (tolerates additive fields)
-- `core/contracts/message.py` — `Message`, `Media`, `MessageRole`
-- `core/contracts/conversation_request.py` — `ConversationRequest`
-- `core/contracts/customer.py` — `Customer`, `CustomerStatus`
-- `core/contracts/business.py` — `Business`
-- `core/contracts/product.py` — `Product`, `ProductImage`
-- `core/contracts/error_detail.py` — `ErrorDetail`
-- `core/contracts/agent_response.py` — `AgentResponse`, `ResponseType`
-- `core/contracts/agent_context.py` — `AgentContext`
-- `core/contracts/health.py` — `HealthResponse`
-- `core/contracts/validate_contract.py` — `validate_contract(model_cls, data)`,
-  which fails with an application error
-
-Incoming user requests such as `ConversationRequest` are validated at the route
-boundary, declared per route as a dependency (`validated_body` in
-`app/api/validators.py`) using `validate_contract`. If validation fails, the
-request is rejected with HTTP 400 and a structured error envelope before the
-service runs.
-
+Products are retrieved separately through product tools when the agent needs
+catalog, price, availability, or product media data. Product tool results do not
+become fields on `AgentContext`.

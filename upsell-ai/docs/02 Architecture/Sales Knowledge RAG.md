@@ -11,8 +11,9 @@ related:
 # Sales Knowledge RAG
 
 The MVP RAG indexes only the static sales knowledge under `knowledge-base/sales`.
-Business, customer, product, price, and stock data come from deterministic tools
-that query operational tables.
+Customer identity comes from `TenantContext`, and product data comes from
+validated product tools. Neither comes from the Sales RAG index. Message media
+is conversation input and is not a product-data source.
 
 ## ai_sales_knowledge
 
@@ -42,5 +43,5 @@ the same rows. No file read is required during an agent run. Only the Sales Agen
 can call this retrieval tool.
 
 Tenant-specific document RAG through `ai_knowledge_documents` and
-`ai_knowledge_chunks` is deferred. The MVP retrieves business data through tools
-instead of embeddings.
+`ai_knowledge_chunks` is deferred. Future external business data is retrieved
+through explicit tools instead of embeddings.

@@ -9,13 +9,17 @@ from app.lib.database.client import db_connection
 from app.lib.redis import RedisCacheManager
 from core import config
 from core.context import AppContext
+from core.exception import AppException
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     redis = Redis.from_url(config.REDIS_URL, decode_responses=True)
 
-    dbconn = await db_connection()
+    try:
+        dbconn = await db_connection()
+    except AppException:
+        dbconn = None
     redis_ctx = RedisCacheManager(
         redis,
         config.CONTEXT_TTL_SECONDS,

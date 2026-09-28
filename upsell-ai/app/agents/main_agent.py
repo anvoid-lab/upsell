@@ -1,18 +1,21 @@
-from typing import Annotated
+from typing import Annotated, Any
 
-from agents import Agent, function_tool
+from agents import (
+    Agent,
+    OpenAIChatCompletionsModel,
+    RunContextWrapper,
+    Runner,
+    function_tool,
+    set_tracing_disabled,
+)
 from fastapi import Depends
+from openai import AsyncOpenAI
 
 from app.agents.capabilities import CapabilitySpec, foundation_capabilities
+from core import config
 from core.contracts.agent_context import AgentContext
 from core.contracts.agent_response import AgentResponse
-from core.policy import (
-    DeterministicPolicy,
-    PolicyDecision,
-    denial_response,
-)
-
-DEFAULT_CAPABILITY = "echo_context"
+from core.policy import DeterministicPolicy
 
 
 class CapabilityRegistry:
@@ -23,34 +26,50 @@ class CapabilityRegistry:
     def items(self) -> list[CapabilitySpec]:
         return list(self._capabilities.values())
 
-    def get(self, name: str) -> CapabilitySpec | None:
-        return self._capabilities.get(name)
-
     def names(self) -> list[str]:
-        return list(self._capabilities.keys())
+        return list(self._capabilities)
 
 
 class MainAgent:
     def __init__(
         self,
         capabilities: Annotated[CapabilityRegistry, Depends()],
+        policy: Annotated[DeterministicPolicy, Depends()],
     ) -> None:
-        self.agent = Agent(
+        set_tracing_disabled(True)
+        client = AsyncOpenAI(
+            base_url=config.LLM_BASE_URL,
+            api_key=config.LLM_API_KEY,
+        )
+        model = OpenAIChatCompletionsModel(
+            model=config.LLM_MODEL,
+            openai_client=client,
+        )
+        self.agent = Agent[AgentContext](
             name="main",
+            model=model,
             instructions=(
-                "Select a registered capability. Do not retrieve sales knowledge."
+                "You are the Upsell AI main agent. Use the registered capability "
+                "when it helps. Do not retrieve sales knowledge or invent business data."
             ),
-            tools=[self._as_tool(spec) for spec in capabilities.items],
+            tools=[self._as_tool(spec, policy) for spec in capabilities.items],
         )
 
     @staticmethod
-    def _as_tool(spec: CapabilitySpec):
+    def _as_tool(spec: CapabilitySpec, policy: DeterministicPolicy):
         @function_tool(
             name_override=spec.name,
             description_override=spec.description,
         )
-        async def run_capability() -> str:
-            return spec.name
+        async def run_capability(
+            run_context: RunContextWrapper[AgentContext],
+        ) -> str:
+            decision = await policy.evaluate(spec.name, run_context.context)
+            if not decision.allowed:
+                return f"capability denied: {decision.code}"
+            response = await spec.handler(run_context.context)
+            run_context.context.response = response
+            return response.content or "capability completed"
 
         return run_capability
 
@@ -58,40 +77,37 @@ class MainAgent:
 class MainAgentShell:
     def __init__(
         self,
-        capabilities: Annotated[CapabilityRegistry, Depends()],
-        policy: Annotated[DeterministicPolicy, Depends()],
         main_agent: Annotated[MainAgent, Depends()],
     ) -> None:
-        self._capabilities = capabilities
-        self._policy = policy
         self.agent = main_agent.agent
 
-    async def run(
-        self,
-        context: AgentContext,
-        capability: str = DEFAULT_CAPABILITY,
-    ) -> AgentResponse:
-        spec = self._capabilities.get(capability)
-
-        if spec is None:
-            return denial_response(
-                context,
-                PolicyDecision(
-                    False,
-                    "unknown_capability",
-                    "capability is not registered",
-                ),
-            )
-
-        decision = await self._policy.evaluate(
-            capability,
-            context,
+    async def run(self, context: AgentContext) -> AgentResponse:
+        result = await Runner.run(
+            self.agent,
+            _agent_input(context),
+            context=context,
         )
+        response = AgentResponse(
+            run_id=context.run_id,
+            type="answer",
+            content=str(result.final_output),
+        )
+        context.response = response
+        return response
 
-        if not decision.allowed:
-            return denial_response(
-                context,
-                decision,
-            )
 
-        return await spec.handler(context)
+def _agent_input(context: AgentContext) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for message in context.messages:
+        content: list[dict[str, str]] = []
+        if message.text:
+            content.append({"type": "input_text", "text": message.text})
+        for media in message.media:
+            if media.type == "image":
+                content.append({"type": "input_image", "image_url": media.url})
+            else:
+                content.append({"type": "input_file", "file_url": media.url})
+        for link in message.links:
+            content.append({"type": "input_text", "text": link})
+        items.append({"role": message.role, "content": content})
+    return items

@@ -20,7 +20,6 @@ signaling.
 
 ```json
 {
-  "request_id": "req-demo-1",
   "conversation_id": "conv-demo-1",
   "evaluated_at": "2026-09-19T23:52:15.571412Z",
   "analysis": {
@@ -59,18 +58,18 @@ signaling.
 
 ## Field rules
 
-- `request_id` is the application run identifier; do not let the model invent it.
 - `analysis.known_information` contains facts from trusted context, while
   `missing_information` drives clarification or discovery questions.
 - `recommendation.primary_action` is a typed enum, not arbitrary executable code.
 - `follow_up.products[*].evidence_ids` must resolve to returned evidence or a
-  trusted product record. The model cannot create price or availability facts.
+  trusted product-tool result. The model cannot create price or availability facts.
 - `follow_up.message` is a recommendation, not an external side effect. Sending
   is owned by a separate action executor and policy check.
 - `follow_up.schedule` expresses intent only. Eligibility, quiet hours,
   permission, and scheduling are deterministic application rules.
-- `evidence` carries source metadata and a concise excerpt. Evidence is scoped to
-  the tenant and can be linked to a product, policy, or playbook.
+- `evidence` carries source metadata and a concise excerpt. Evidence can be
+  linked to a trusted product-tool result, a policy, or a playbook. Conversation
+  media may inform understanding but is not authoritative product evidence.
 - `confidence`, `requires_human`, and `warnings` are signals for the application;
   `requires_human` never overrides a policy that requires approval.
 

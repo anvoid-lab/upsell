@@ -16,10 +16,9 @@ class CapabilitySpec:
 
 async def echo_context(context: AgentContext) -> AgentResponse:
     return AgentResponse(
-        request_id="",
-        run_id="",
+        run_id=context.run_id,
         type="answer",
-        # content=f"context ready for {context.customer.id}",
+        content="context ready",
         data=None,
         approval=None,
     )

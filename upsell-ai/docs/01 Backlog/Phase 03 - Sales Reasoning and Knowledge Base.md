@@ -36,10 +36,10 @@ uncertainty -> Main Agent presents the result without inventing business facts.
 
 - [ ] Sales Agent prompt and `SalesAgentResponse` output inside the shared `AgentResponse`
 - [ ] Normalize and validate the shape from `exemple-output.json`
-- [ ] Customer, business, and product context tools using the shared `AgentContext`
+- [ ] Optional external read-only context tools keyed by `TenantContext.customer_id`
 - [ ] Static sales knowledge index in `ai_sales_knowledge`
 - [ ] Chunking, embeddings, content hashes, and pgvector retrieval
-- [ ] Business, customer, product, price, and stock tools backed by operational tables
+- [ ] Business and product context tools backed by trusted operational data
 - [ ] Knowledge ingestion and metadata filtering boundary
 - [ ] Grounded response and no-answer behavior
 
@@ -52,7 +52,7 @@ uncertainty -> Main Agent presents the result without inventing business facts.
 - [ ] Sales Agent can answer with no retrieval when context is sufficient
 - [ ] Retrieved advice cites knowledge entries or clearly reports no support
 - [ ] Unknown price, availability, or policy is never invented
-- [ ] Recommendations use trusted decimal price and integer stock values from `Product`
+- [ ] Recommendations use price and availability only from trusted product tools
 - [ ] E2E tests cover direct reasoning, retrieval, irrelevant query, and no-answer paths
 - [ ] E2E output preserves evidence-to-product links and follow-up intent
 

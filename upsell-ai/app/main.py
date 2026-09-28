@@ -2,10 +2,12 @@ import uvicorn
 
 from app.api.global_exception import global_exception_handlers
 from app.api.middlewares.auth_middleware import AuthMiddleware
+from app.api.middlewares.idempotency_middleware import IdempotencyMiddleware
 from app.app import app
 from core import config
 
 # Middleware
+app.add_middleware(IdempotencyMiddleware)
 app.add_middleware(AuthMiddleware)
 
 # Exception Handlers

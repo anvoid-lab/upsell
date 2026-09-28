@@ -14,13 +14,16 @@ related:
 ## Decision
 
 Do not create `agent_runs`, `agent_actions`, or `agent_approvals` in the current
-MVP. Redis provides reusable customer context, while normal request execution
-remains short-lived.
+MVP. Agent execution remains short-lived. Redis is the generic cache adapter and
+Phase 01 uses it for tenant-scoped idempotency responses, not customer or
+product context.
 
 Do not create `ai_knowledge_documents` or `ai_knowledge_chunks` in the current
-MVP. Tenant-specific business documents are not indexed. Business, customer,
-product, price, and stock data are retrieved through operational tools. The only
-MVP vector table is `ai_sales_knowledge` for static sales guidance.
+MVP. Tenant-specific business documents are not indexed. Customer identity is
+an opaque value on `TenantContext`, while business and product data are loaded
+on demand through validated tools. Message media remains conversation input and
+is not treated as product data. The only MVP vector table is
+`ai_sales_knowledge` for static sales guidance.
 
 ## Re-evaluation triggers
 

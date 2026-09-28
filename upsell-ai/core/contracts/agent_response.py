@@ -1,13 +1,12 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel
-
+from core.contracts.base import ContractModel
 from core.exception import ErrorDetail
 
 ResponseType = Literal["answer", "sales_copilot", "approval", "error"]
 
 
-class AgentResponse(BaseModel):
+class AgentResponse(ContractModel):
     type: ResponseType
     run_id: str
     content: str | None = None

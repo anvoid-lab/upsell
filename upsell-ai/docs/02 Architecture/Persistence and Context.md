@@ -1,33 +1,19 @@
 ---
 type: architecture
 title: Persistence and Context
-updated: 2026-09-25
-related:
-  - "[[03 Contracts/Approval and Action]]"
-  - "[[03 Contracts/Agent Runtime]]"
+updated: 2026-09-28
 ---
 
 # Persistence and Context
 
-Use PostgreSQL in the sibling `../supabase` project as the application source of
-truth and Redis as the rebuildable agent-context cache. The workspace link is
-[[05 Workspace/External Projects]]. Keep stable,
-queryable fields relational: tenant, actor, business, conversation, run, action,
-approval, schedule, status, timestamps, and idempotency keys. Keep evolving
-agent state in JSONB, including serialized SDK run state where needed. Customer
-and product rows required by `AgentContext` are migrations in that sibling
-project; this repository reaches them only through `lib/supabase`, and services
-read them through [[02 Architecture/Repository Boundary]]. Supabase credentials
-live in `core/config.py` (`SUPABASE_URL`, `SUPABASE_KEY`), which is the single
-configuration module — no `Settings` class exists.
+Phase 01 does not load or persist customer, business, product, price, stock, or
+media data. `TenantContext.customer_id` is a read-only opaque identifier for a
+future external data integration.
 
-Redis keeps customer context, recent messages, summaries, runtime state, and the
-last response between requests. On cache miss, the application rebuilds context
-from trusted PostgreSQL data.
+Existing database migrations, row contracts, and `BaseRepository` remain in the
+repository unchanged. They are reserved for the phase that needs persistent
+business operations; they are not dependencies of the chat turn.
 
-Durable serialized run state, action persistence, and approval persistence are
-deferred by [[04 Decisions/ADR-002 Defer Durable Agent Execution Persistence]].
-
-Follow-ups are separate durable jobs. A worker loads current context when a job
-is due, claims it idempotently, runs the required capability, and records the
-outcome.
+`AgentContext` is in-memory mutable state for one agent run. It is passed to
+the Agents SDK as local run context. Code updates only the affected fields with
+normal assignment and built-in list/dict mutation.

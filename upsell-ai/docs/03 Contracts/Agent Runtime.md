@@ -23,6 +23,7 @@ rationale summary, sales stage, confidence/uncertainty, evidence references, and
 an optional proposed action. It must distinguish known trusted facts from model
 inference.
 
-The runtime uses Redis-backed context for continuity between short-lived runs.
-Durable SDK `RunState` snapshots and database-backed approval resumption are
-deferred from the current MVP.
+`AgentContext` is mutable local state for one `Runner.run()` execution. Redis is
+not the conversation-memory owner in Phase 01; it stores idempotent response
+snapshots through `RequestContext`. Durable SDK `RunState` snapshots and
+database-backed approval resumption are deferred from the current MVP.

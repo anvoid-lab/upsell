@@ -34,5 +34,7 @@ class Product(RecordModel):
     @classmethod
     def parse_price(cls, value: Any) -> Decimal:
         if isinstance(value, float):
-            raise ValueError("price must be a fixed-precision decimal, not float")
+            raise ValueError(  # noqa: TRY004
+                "price must be a fixed-precision decimal, not float"
+            )
         return Decimal(str(value)) if not isinstance(value, Decimal) else value
